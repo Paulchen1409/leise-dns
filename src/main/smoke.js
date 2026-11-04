@@ -25,6 +25,9 @@ function seed(service) {
   const now=Date.now();let n=0;
   const start=new Date();start.setHours(0,0,0,0);start.setDate(start.getDate()-6);
   for(let t=start.getTime();t<now;t+=3600000) {
+    // PC off: one whole day and every night, so the screenshots show gaps in the chart.
+    const age=Math.floor((now-t)/86400000);
+    if(age===3 || new Date(t).getHours()<7)continue;
     const hour=new Date(t).getHours();const today=t>=now-(new Date().getHours()+1)*3600000;
     const load=Math.round((hour>=8 && hour<=23?1:0.25)*(today?34:12)*(0.6+((hour*7919+t/3600000)%10)/12));
     for(let i=0;i<load;i++) {

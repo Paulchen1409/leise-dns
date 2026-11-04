@@ -46,6 +46,13 @@ class DnsProxy extends EventEmitter {
   constructor({store,port=53,hosts=['127.0.0.1','::1'],upstreamPort=53,timeout=4000}) {
     super(); Object.assign(this,{store,port,hosts,upstreamPort,timeout}); this.servers=[];this.connections=new Set();this.inflight=0;this.running=false;
     this.active=()=>true;this.blockPage=()=>null;this.upstream=()=>UPSTREAMS[this.store.get('upstream','cloudflare')] || UPSTREAMS.cloudflare;
+    this.splitDns=()=>[];
+  }
+  // VPN split DNS: names under a VPN adapter's DNS suffix go to that VPN's own DNS server,
+  // everything else to the chosen provider. The longest matching suffix wins.
+  serverFor(domain) {
+    const route=this.splitDns().filter(r=>domain===r.suffix || domain.endsWith('.'+r.suffix)).sort((a,b)=>b.suffix.length-a.suffix.length)[0];
+    return route?.servers[0] || this.upstream();
   }
   async handle(raw,tcp=false) {
     let query; const started=Date.now();
@@ -63,9 +70,10 @@ class DnsProxy extends EventEmitter {
         result=page?blockPageReply(query,page):reply(query,3);
       }
       else {
-        result=await forward(raw,this.upstream(),tcp,this.upstreamPort,this.timeout);
+        const server=this.serverFor(domain);
+        result=await forward(raw,server,tcp,this.upstreamPort,this.timeout);
         let response=packet.decode(result);
-        if(response.flag_tc && !tcp) { result=await forward(raw,this.upstream(),true,this.upstreamPort,this.timeout);response=packet.decode(result); }
+        if(response.flag_tc && !tcp) { result=await forward(raw,server,true,this.upstreamPort,this.timeout);response=packet.decode(result); }
         if(this.active() && !matches(this.store.white,domain) && response.answers.some(a=>a.type==='CNAME' && this.store.reason(a.data))) {
           status='blocked';reason='Weiterleitung auf gesperrte Domain';result=reply(query,3);
         } else if (['SERVFAIL','REFUSED'].includes(response.rcode)) {status='error';reason='DNS-Anbieter: '+response.rcode;}

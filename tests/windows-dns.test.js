@@ -14,6 +14,10 @@ test('Windows PowerShell 5.1 stellt IPv4 und IPv6 als separate Einträge wieder 
   const output=execFileSync(path.join(process.env.SystemRoot,'System32','WindowsPowerShell','v1.0','powershell.exe'),['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(__dirname,'restore-dns.ps1')],{encoding:'utf8',windowsHide:true,timeout:15000});
   assert.match(output,/PASS: IPv4, IPv6/);
 });
+test('Neue Adapter werden übernommen, ohne VPN-Software zu bekämpfen; VPN-Suffix ergibt Split-DNS',windows,()=>{
+  const output=execFileSync(path.join(process.env.SystemRoot,'System32','WindowsPowerShell','v1.0','powershell.exe'),['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(__dirname,'adopt-adapters.ps1')],{encoding:'utf8',windowsHide:true,timeout:30000});
+  assert.match(output,/PASS: adoption/);
+});
 
 // Fake Windows commands: whoami and schtasks. Nothing here touches real tasks.
 function fakeRun(dns,{taskExists=false,onRun=()=>{}}={}) {

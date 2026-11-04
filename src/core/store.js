@@ -95,7 +95,7 @@ class Store {
     const totals = this.db.prepare('SELECT COALESCE(SUM(total),0) total,COALESCE(SUM(blocked),0) blocked,COALESCE(SUM(errors),0) errors FROM hours WHERE time>=?').get(from);
     const rows = this.db.prepare('SELECT * FROM hours WHERE time>=? ORDER BY time').all(from);
     const map = new Map(rows.map(r=>[r.time,r])); const history=[];
-    for(let t=Math.floor(from/3600000)*3600000;t<=Date.now();t+=3600000) history.push(map.get(t)||{time:t,total:0,blocked:0,errors:0});
+    for(let t=Math.floor(from/3600000)*3600000;t<=Date.now();t+=3600000) history.push(map.get(t)||{time:t,total:0,blocked:0,errors:0,noData:true}); // No row: the PC or the protection was off, which is not the same as zero queries.
     const day = `${start.getFullYear()}-${String(start.getMonth()+1).padStart(2,'0')}-${String(start.getDate()).padStart(2,'0')}`;
     const top = this.db.prepare('SELECT domain,SUM(count) count FROM top_domains WHERE day>=? GROUP BY domain ORDER BY count DESC LIMIT 8').all(day);
     return {...totals, rate:totals.total ? totals.blocked/totals.total*100 : 0, history, top};

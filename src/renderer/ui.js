@@ -121,7 +121,29 @@
     }
   };
 
-  const api = { describeStatus, prefs, UPSTREAM_NAMES };
+  // Groups hourly history for the chart. A group without any recorded hour stays marked as
+  // noData, so the chart shows a gap instead of pretending nothing was blocked.
+  function chartGroups(history, bucket = 1) {
+    const groups = [];
+    for (let i = 0; i < history.length; i += bucket) {
+      const slice = history.slice(i, i + bucket);
+      const sum = key => slice.reduce((n, r) => n + r[key], 0);
+      groups.push({ time: slice[0].time, total: sum('total'), blocked: sum('blocked'), errors: sum('errors'), noData: slice.every(r => r.noData) });
+    }
+    return groups;
+  }
+  // Index ranges [first, last] of consecutive groups without data.
+  function gapRanges(groups) {
+    const ranges = [];
+    groups.forEach((g, i) => {
+      if (!g.noData) return;
+      const open = ranges[ranges.length - 1];
+      if (open && open[1] === i - 1) open[1] = i; else ranges.push([i, i]);
+    });
+    return ranges;
+  }
+
+  const api = { describeStatus, prefs, UPSTREAM_NAMES, chartGroups, gapRanges };
   global.LeiseUI = api;
   if (typeof module !== 'undefined') module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

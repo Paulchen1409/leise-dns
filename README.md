@@ -4,7 +4,7 @@ Ein lokaler DNS-Adblocker für **diesen Windows-PC**. Electron, Vanilla JavaScri
 
 ## Direkt starten
 
-`Start-LeiseDNS.cmd` doppelklicken. Alternativ `dist/win-unpacked/Leise DNS.exe` starten; dafür muss der ganze Ordner `win-unpacked` zusammenbleiben. Der aktuelle Installer liegt unter `dist/Leise DNS Setup 0.4.0.exe`.
+`Start-LeiseDNS.cmd` doppelklicken. Alternativ `dist/win-unpacked/Leise DNS.exe` starten; dafür muss der ganze Ordner `win-unpacked` zusammenbleiben. Der aktuelle Installer liegt unter `dist/Leise DNS Setup 0.5.0.exe`.
 
 Version 0.2.0 ist ein vollständiges visuelles Redesign im Stil der Liquid-Glass-Designsprache (siehe Abschnitt 3). DNS-Logik, Administratorfreigabe, Wiederherstellung, Datenbank und Filterparser sind unverändert. Für ein Update die laufende App über das Tray-Symbol beenden und den neuen Installer ausführen; Regeln und Statistiken bleiben erhalten.
 
@@ -80,7 +80,9 @@ Verbindungsgrenzen, Zeitlimits und Größenlimits begrenzen offene DNS-Verbindun
 
 Der Hilfsprozess überwacht den Elternprozess und stellt nach dessen Ende die Einstellungen wieder her. Zusätzlich wird während aktiven Schutzes eine Wiederherstellungsaufgabe beim Windows-Start registriert, damit ein harter Neustart nicht dauerhaft auf einen fehlenden lokalen DNS-Dienst verweist. Die Sicherung und das Wiederherstellungsskript liegen in einem gegen Schreibzugriffe normaler Benutzer geschützten Ordner `%ProgramData%/LeiseDNS`. Nach erfolgreicher Rücksetzung werden Sicherung und Aufgabe entfernt. Bei Rücksetzungsfehlern bleibt die App beim normalen Beenden geöffnet und zeigt den Fehler.
 
-**Wichtig für deinen vorhandenen VPN-Adapter:** VPN-Software kann DNS selbst verwalten oder fremde DNS-Anbieter blockieren. Ein fehlgeschlagener Verbindungstest verhindert die Einrichtung. Neu verbundene Adapter werden durch Ausschalten und erneutes Einschalten übernommen. VPN-Split-DNS und firmenspezifische interne Namensauflösung sind in dieser Grundversion nicht implementiert.
+**Neu verbundene Adapter:** Während der Schutz läuft, prüft der Hilfsprozess alle fünf Sekunden, welche Adapter verbunden sind. Kommt einer dazu (WLAN, VPN), werden seine ursprünglichen DNS-Werte zuerst gesichert und er dann auf den lokalen Dienst umgestellt. Schlägt das fehl, zeigt die App den Fehler und versucht es erneut. Bereits gesicherte Adapter werden nicht erneut umgestellt: Stellt VPN-Software ihren DNS selbst zurück, kämpft Leise DNS nicht dagegen an; die App zeigt dann „nur teilweise verbunden“. Ein später übernommener Adapter, den es nicht mehr gibt (viele VPNs entfernen ihren Adapter beim Trennen), verschwindet aus der Sicherung und blockiert keine Wiederherstellung.
+
+**VPN-Split-DNS:** Bringt ein VPN-Adapter einen eigenen DNS-Suffix mit (z. B. `firma.example`), gehen Namen unter diesem Suffix an den ursprünglichen IPv4-DNS-Server des VPN, alles andere an den gewählten Anbieter. Sperren gelten auch dort. Das gilt nur für Adapter, die sich anhand ihrer Beschreibung als VPN erkennen lassen, solange sie verbunden sind; einzelne öffentliche Endungen wie `com` werden nie umgeleitet. Interne Namen ohne Suffix-Angabe des VPN sowie IPv6-only-DNS-Server werden nicht abgedeckt. VPN-Software kann DNS außerdem selbst verwalten oder fremde Anbieter blockieren; ein fehlgeschlagener Verbindungstest verhindert die Einrichtung.
 
 ## 3. Oberfläche und Designsystem
 
@@ -102,7 +104,7 @@ Die Schutzfarbe liegt als Licht *hinter* der Statusfläche und wird vom Glas wei
 
 **Barrierefreiheit:** Einstellungen → Darstellung bietet „Transparenz reduzieren“, „Bewegung reduzieren“ und „Lichtbrechung“; „Automatisch“ folgt den Windows-Einstellungen. Sichtbare Tastaturfokusse, beschriftete Schalter und Symbolbuttons, Klickflächen ab 44 px (Tabellenaktionen kompakter). Fallback ohne `backdrop-filter`: deckende Flächen.
 
-**Dashboard:** Schutzstatus mit großem Schalter (echter Zwischenzustand während der Aktivierung) und allen Zuständen – Einrichtung erforderlich, aktiv, zeitlich pausiert, bis App-Neustart pausiert, dauerhaft aus, Aktivierung läuft, Windows-Freigabe erforderlich, Dienst nicht erreichbar, Einrichtung/Zurücksetzen fehlgeschlagen. Darunter die Pausenoptionen, Kennzahlen (Heute/7/30 Tage), Chart.js-Verlauf (7 Tage in 3-Stunden-, 30 Tage in 12-Stunden-Blöcken), Top 8 blockierte Domains und die letzten fünf Anfragen. SQLite ist die einzige Quelle für Verkehrsdaten; keine Demo-Zahlen.
+**Dashboard:** Schutzstatus mit großem Schalter (echter Zwischenzustand während der Aktivierung) und allen Zuständen – Einrichtung erforderlich, aktiv, zeitlich pausiert, bis App-Neustart pausiert, dauerhaft aus, Aktivierung läuft, Windows-Freigabe erforderlich, Dienst nicht erreichbar, Einrichtung/Zurücksetzen fehlgeschlagen. Darunter die Pausenoptionen, Kennzahlen (Heute/7/30 Tage), Chart.js-Verlauf (7 Tage in 3-Stunden-, 30 Tage in 12-Stunden-Blöcken; Zeiten ohne Aufzeichnung, etwa weil der PC oder der Schutz aus war, erscheinen als Lücke und nicht als 0), Top 8 blockierte Domains und die letzten fünf Anfragen. SQLite ist die einzige Quelle für Verkehrsdaten; keine Demo-Zahlen.
 
 **Query-Log:** Neue Einträge werden einzeln oben eingefügt. Wer weiter unten liest, bleibt exakt an seiner Position; ein Hinweis „N neue Anfragen“ führt zurück nach oben.
 
@@ -161,8 +163,10 @@ Icons neu erzeugen: `npx electron scripts/make-icon.js`.
 
 **Version 0.4.0:** Sperrseite für Malware und Phishing. 34 automatisierte Tests bestehen, unter anderem DNS-Antworten, Inhalt und Sicherheits-Header der Hinweisseite, TLS mit vollständiger Zertifikatsprüfung, Ausstellung nur für gesperrte Namen, verschlüsselte Ablage und abgebrochene Windows-Abfrage. Der Oberflächentest prüft die echte DNS-Antwort und die ausgelieferte Seite auf Testports. Das Installieren des Zertifikats in Windows ist nicht automatisiert getestet, weil es eine Windows-Abfrage erfordert.
 
-Der Windows-Installer wurde erstellt, aber nicht auf diesem PC installiert. Er ist nicht mit einem Herausgeberzertifikat signiert.
+**Version 0.5.0:** Lücken im Verlauf, automatische Übernahme neuer Adapter und VPN-Split-DNS. 37 automatisierte Tests bestehen; die Adapter-Übernahme läuft dabei mit simulierten Adaptern, Split-DNS mit lokalem Test-Server, nicht mit einem echten VPN. Weil sich der Hilfsprozess geändert hat, fragt Windows nach dem Update einmal erneut nach der Freigabe.
 
-**Noch nicht live verifiziert:** Die tatsächliche administrative Umstellung, Rücksetzung, Absturzwiederherstellung und Boot-Wiederherstellung auf diesem PC. Diese Tests würden die echten Netzwerkeinstellungen verändern; sie wurden beim Erstellen nicht ausgeführt. Der Hintergrunddienst ist ein Electron-Prozess mit separatem Wiederherstellungshelfer, kein dauerhaft installierter Windows-Service.
+Der Installer ist nicht mit einem Herausgeberzertifikat signiert. Dafür wäre ein gekauftes Code-Signing-Zertifikat nötig; bis dahin kann Windows SmartScreen beim Installieren warnen.
+
+Der Hintergrunddienst ist ein Electron-Prozess mit separatem Wiederherstellungshelfer, kein dauerhaft installierter Windows-Service.
 
 Technische Referenzen: [Electron-Tray](https://www.electronjs.org/docs/latest/tutorial/tray), [Electron-App-Lebenszyklus](https://www.electronjs.org/docs/latest/api/app), [Node.js SQLite](https://nodejs.org/api/sqlite.html), [Windows DNS-Einstellungen](https://learn.microsoft.com/en-us/powershell/module/dnsclient/set-dnsclientserveraddress?view=windowsserver2025-ps).

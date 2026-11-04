@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { randomUUID, createHash } = require('node:crypto');
 const execFileAsync=promisify(execFile);
-const HELPER_VERSION=2;
+const HELPER_VERSION=3;
 const system32=path.join(process.env.SystemRoot || 'C:\\Windows','System32');
 const powershell=path.join(system32,'WindowsPowerShell','v1.0','powershell.exe');
 const script=path.join(__dirname,'dns-helper.ps1').replace('app.asar','app.asar.unpacked');
@@ -43,7 +43,9 @@ class WindowsDns {
     const args=['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',script,'-Inspect'];
     if(this.storageRoot)args.push('-StorageRoot',this.storage);
     const {stdout}=await execFileAsync(powershell,args,{windowsHide:true,timeout:20000,maxBuffer:1024*1024});
-    this.last=JSON.parse(stdout.replace(/^\uFEFF/,'')); return this.last;
+    this.last=JSON.parse(stdout.replace(/^\uFEFF/,''));
+    this.last.adapterError=this.current()?.adapterError || '';
+    return this.last;
   }
   readState() {try{return JSON.parse(fs.readFileSync(this.statePath,'utf8').replace(/^\uFEFF/,''));}catch{return null;}}
   // Only answers for this app session count; older sessions may have left a state behind.

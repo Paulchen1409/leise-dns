@@ -16,6 +16,7 @@ class Service extends EventEmitter {
     this.proxy.active=()=>this.mode.kind==='active';
     this.blockPage=blockPage?new BlockPage({store:this.store,dataPath,...blockPage}):null;
     this.proxy.blockPage=()=>this.blockPage?.available() || null;
+    this.proxy.splitDns=()=>this.dns.last?.splitDns || [];
     this.proxy.on('query',entry=>this.emit('query',entry));
     this.proxy.on('fault',e=>{this.error=e.message;this.changed();});
     this.filters=new Filters(this.store,()=>this.changed());
@@ -23,7 +24,7 @@ class Service extends EventEmitter {
   changed() {this.emit('changed',this.status());}
   status() {
     // helper: the elevated DNS helper is running, i.e. no Windows approval prompt is pending.
-    return {mode:this.mode,dns:this.dns.last,running:this.proxy.running,busy:this.busy || this.dns.busy,error:this.error,helper:this.dns.started===true,
+    return {mode:this.mode,dns:this.dns.last,running:this.proxy.running,busy:this.busy || this.dns.busy,error:this.error || this.dns.last?.adapterError || '',helper:this.dns.started===true,
       active:this.proxy.running && this.dns.last.configured && this.dns.started!==false && this.mode.kind==='active',
       domainCount:this.store.filtered.size,
       blockPage:this.blockPage?.status() || null,

@@ -49,6 +49,45 @@ async function mockUpstream() {
   const sockets=new Set();const tcp=net.createServer(s=>{sockets.add(s);s.on('close',()=>sockets.delete(s));let b=Buffer.alloc(0);s.on('error',()=>{});s.on('data',c=>{b=Buffer.concat([b,c]);if(b.length>=2 && b.length>=b.readUInt16BE(0)+2){const out=response(b.subarray(2,b.readUInt16BE(0)+2),true);if(out){const h=Buffer.alloc(2);h.writeUInt16BE(out.length);s.end(Buffer.concat([h,out]));}}});});
   await new Promise(r=>tcp.listen(port,'127.0.0.1',r));return {port,get calls(){return calls;},async close(){for(const s of sockets)s.destroy();await Promise.all([new Promise(r=>udp.close(r)),new Promise(r=>tcp.close(r))]);}};
 }
+test('Split-DNS: Namen unter dem VPN-Suffix gehen an den VPN-Server, Sperren gelten weiter',async()=>{
+  const upstream=await mockUpstream();const store=new Store(':memory:');store.addRule('black','ads.corp.example');
+  const proxy=new DnsProxy({store,port:0,hosts:['127.0.0.1'],upstreamPort:upstream.port,timeout:100});
+  // The normal provider is unreachable here, so an answer can only come through the VPN route.
+  proxy.upstream=()=>'192.0.2.1';proxy.splitDns=()=>[{suffix:'corp.example',servers:['127.0.0.1']}];
+  const ask=async name=>packet.decode(await proxy.handle(packet.encode({type:'query',id:9,flags:packet.RECURSION_DESIRED,questions:[{name,type:'A'}]})));
+  try {
+    assert.equal(proxy.serverFor('intranet.corp.example'),'127.0.0.1');
+    assert.equal(proxy.serverFor('corp.example'),'127.0.0.1');
+    assert.equal(proxy.serverFor('notcorp.example'),'192.0.2.1');
+    assert.equal((await ask('intranet.corp.example')).answers[0].data,'203.0.113.10');
+    assert.equal(upstream.calls,1);
+    assert.equal((await ask('ads.corp.example')).rcode,'NXDOMAIN');assert.equal(upstream.calls,1);
+    assert.equal((await ask('example.org')).rcode,'SERVFAIL');assert.equal(upstream.calls,1);
+    // The longest suffix wins.
+    proxy.splitDns=()=>[{suffix:'example',servers:['192.0.2.2']},{suffix:'corp.example',servers:['192.0.2.3']}];
+    assert.equal(proxy.serverFor('a.corp.example'),'192.0.2.3');
+    assert.equal(proxy.serverFor('b.example'),'192.0.2.2');
+  }finally{await upstream.close();store.close();}
+});
+test('Statistik: Stunden ohne Aufzeichnung sind keine Nullen',()=>{
+  const store=new Store(':memory:');
+  try {
+    const now=Date.now();const hour=Math.floor(now/3600000)*3600000;
+    const earlier=hour-2*3600000;
+    store.log({time:earlier,domain:'a.example',type:'A',status:'blocked'});store.log({time:now,domain:'b.example',type:'A',status:'allowed'});
+    const history=store.stats(7).history;
+    const at=t=>history.find(r=>r.time===t);
+    assert.equal(at(earlier).blocked,1);assert.ok(!at(earlier).noData);
+    assert.equal(at(hour-3600000).noData,true);assert.equal(at(hour).noData,undefined);
+    const {chartGroups,gapRanges}=require('../src/renderer/ui.js');
+    const row=(noData,blocked=0)=>({time:0,total:blocked,blocked,errors:0,...(noData?{noData:true}:{})});
+    // A group with one recorded hour counts as data, also when its value is a real zero.
+    const groups=chartGroups([row(true),row(true),row(false,2),row(true),row(true),row(true),row(false,0)],3);
+    assert.deepEqual(groups.map(g=>[g.noData,g.blocked]),[[false,2],[true,0],[false,0]]);
+    assert.deepEqual(gapRanges(chartGroups([row(true),row(false),row(true),row(true),row(false)])),[[0,0],[2,3]]);
+    assert.deepEqual(gapRanges(chartGroups([row(false)])),[]);
+  }finally{store.close();}
+});
 test('DNS: UDP/TCP, Sperren, CNAME, Pausen, TCP-Fallback und SERVFAIL',async()=>{
   const upstream=await mockUpstream();const store=new Store(':memory:');store.addRule('black','ads.example.com');
   const proxy=new DnsProxy({store,port:0,hosts:['127.0.0.1'],upstreamPort:upstream.port,timeout:100});proxy.upstream=()=> '127.0.0.1';

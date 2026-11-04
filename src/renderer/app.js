@@ -1,5 +1,5 @@
 const api = window.leise;
-const { describeStatus, prefs } = window.LeiseUI;
+const { describeStatus, prefs, chartGroups, gapRanges } = window.LeiseUI;
 const $ = s => document.querySelector(s);
 const $$ = s => document.querySelectorAll(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -269,6 +269,36 @@ const crosshair = {
     c.ctx.restore();
   }
 };
+// Marks periods without data, so a gap reads as "not measured" and not as a broken chart.
+let chartGaps = [];
+const gapBands = {
+  id: 'gapBands',
+  beforeDatasetsDraw(c) {
+    const { left, right, top, bottom } = c.chartArea;
+    const last = c.data.labels.length - 1;
+    const x = c.scales.x;
+    c.ctx.save();
+    for (const [first, end] of chartGaps) {
+      const from = first > 0 ? x.getPixelForValue(first - 1) : left;
+      const to = end < last ? x.getPixelForValue(end + 1) : right;
+      c.ctx.fillStyle = 'rgba(255,255,255,0.025)';
+      c.ctx.fillRect(from, top, to - from, bottom - top);
+      if (to - from >= 84) {
+        c.ctx.fillStyle = seriesColors().text;
+        c.ctx.font = '12px "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif';
+        c.ctx.textAlign = 'center';
+        c.ctx.textBaseline = 'middle';
+        c.ctx.fillText('Keine Daten', (from + to) / 2, (top + bottom) / 2);
+      }
+    }
+    c.ctx.restore();
+  }
+};
+// Lines hide their points, so a value between two gaps needs a visible dot.
+function isolatedPoint(ctx) {
+  const data = ctx.dataset.data, i = ctx.dataIndex;
+  return data?.[i] != null && data[i - 1] == null && data[i + 1] == null ? 2.5 : 0;
+}
 
 function createChart() {
   const colors = seriesColors();
@@ -278,13 +308,14 @@ function createChart() {
   const line = (label, color) => ({
     label, data: [], borderColor: color, backgroundColor: areaFill(color), fill: 'origin',
     borderWidth: 1.75, tension: 0.35, cubicInterpolationMode: 'monotone',
-    pointRadius: 0, pointHitRadius: 14, pointHoverRadius: 4, pointHoverBorderWidth: 2,
+    pointRadius: isolatedPoint, pointBackgroundColor: color, pointBorderWidth: 0,
+    pointHitRadius: 14, pointHoverRadius: 4, pointHoverBorderWidth: 2,
     pointHoverBackgroundColor: '#0e121a', pointHoverBorderColor: color
   });
   chart = new Chart($('#traffic-chart'), {
     type: 'line',
     data: { labels: [], datasets: [line('Blockiert', colors.blocked), line('Fehler', colors.error), line('Erlaubt', colors.allowed)] },
-    plugins: [crosshair],
+    plugins: [gapBands, crosshair],
     options: {
       responsive: true, maintainAspectRatio: false, animation: false,
       interaction: { mode: 'index', intersect: false },
@@ -322,24 +353,24 @@ function renderStats(data, s) {
   $('#stats-range-label').textContent = days === 1 ? 'Dein Tag in Zahlen' : `Die letzten ${days} Tage`;
   // Longer ranges are grouped into 3 h / 12 h buckets so the lines stay readable.
   const bucket = days === 1 ? 1 : days === 7 ? 3 : 12;
-  $('#chart-sub').textContent = days === 1 ? 'Pro Stunde, heute' : `Je ${bucket} Stunden, letzte ${days} Tage`;
+  const groups = chartGroups(data.history, bucket);
+  const gaps = data.total === 0 ? [] : gapRanges(groups);
+  const range = days === 1 ? 'Pro Stunde, heute' : `Je ${bucket} Stunden, letzte ${days} Tage`;
+  $('#chart-sub').textContent = gaps.length ? `${range} · Lücken: PC oder Schutz war aus` : range;
   $('#legend-allowed').textContent = number(data.total - data.blocked - data.errors);
   $('#legend-blocked').textContent = number(data.blocked);
   $('#legend-error').textContent = number(data.errors);
 
   if (window.Chart && changed('chart', [days, data.history])) {
     if (!chart) createChart();
-    const groups = [];
-    for (let i = 0; i < data.history.length; i += bucket) {
-      const slice = data.history.slice(i, i + bucket);
-      groups.push(slice.reduce((g, r) => ({ time: g.time, total: g.total + r.total, blocked: g.blocked + r.blocked, errors: g.errors + r.errors }), { time: slice[0].time, total: 0, blocked: 0, errors: 0 }));
-    }
+    chartGaps = gaps;
     const hour = t => new Date(t).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
     chart.data.labels = groups.map(g => days === 1 ? hour(g.time) : `${day(g.time)}, ${new Date(g.time).getHours()} Uhr`);
     chartTitles = groups.map(g => days === 1 ? `${hour(g.time)}–${hour(g.time + 3600000)} Uhr` : `${day(g.time)}, ${hour(g.time)}–${hour(g.time + bucket * 3600000)} Uhr`);
-    chart.data.datasets[0].data = groups.map(g => g.blocked);
-    chart.data.datasets[1].data = groups.map(g => g.errors);
-    chart.data.datasets[2].data = groups.map(g => g.total - g.blocked - g.errors);
+    // null leaves a gap in the line; hours without data are not "0 blocked".
+    chart.data.datasets[0].data = groups.map(g => g.noData ? null : g.blocked);
+    chart.data.datasets[1].data = groups.map(g => g.noData ? null : g.errors);
+    chart.data.datasets[2].data = groups.map(g => g.noData ? null : g.total - g.blocked - g.errors);
     chart.update('none');
   }
   const noData = data.total === 0;

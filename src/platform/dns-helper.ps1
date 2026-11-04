@@ -9,7 +9,7 @@
     [string]$StorageRoot
 )
 $ErrorActionPreference = 'Stop'
-$HelperVersion = 2
+$HelperVersion = 3
 # Elevated code resolves system locations through Windows APIs, never through
 # environment variables, which a normal user process could redirect.
 $system32 = [Environment]::GetFolderPath('System')
@@ -22,15 +22,23 @@ $trustedOwners = @('S-1-5-32-544', 'S-1-5-18', 'S-1-5-80-956008885-3418522649-18
 function Get-ActiveAdapters {
     @(Get-NetAdapter | Where-Object { $_.Status -eq 'Up' -and $_.InterfaceDescription -notmatch 'Loopback' })
 }
+function Test-VpnAdapter($Adapter) {
+    return [string]$Adapter.InterfaceDescription -match 'VPN|WireGuard|Wintun|TAP[- ]|AnyConnect|Fortinet|FortiSSL|GlobalProtect|PANGP|Juniper|Pulse Secure|SonicWall|Tailscale|ZeroTier|Tunnel'
+}
 function Get-Snapshot {
     $rows = @()
     foreach ($adapter in Get-ActiveAdapters) {
+        # Only a VPN's suffix is used for split DNS; a suffix from any other network is ignored.
+        $suffix = ''
+        if (Test-VpnAdapter $adapter) {
+            $suffix = [string](@(Get-DnsClient -InterfaceIndex $adapter.ifIndex -ErrorAction SilentlyContinue | Where-Object { $_.ConnectionSpecificSuffix }) | Select-Object -First 1).ConnectionSpecificSuffix
+        }
         foreach ($family in @('IPv4','IPv6')) {
             $regBase = if ($family -eq 'IPv4') { 'Tcpip' } else { 'Tcpip6' }
             $key = "HKLM:\SYSTEM\CurrentControlSet\Services\$regBase\Parameters\Interfaces\$($adapter.InterfaceGuid)"
             $static = (Get-ItemProperty -LiteralPath $key -Name NameServer -ErrorAction SilentlyContinue).NameServer
             $servers = @((Get-DnsClientServerAddress -InterfaceIndex $adapter.ifIndex -AddressFamily $family).ServerAddresses)
-            $rows += [pscustomobject]@{ Guid = [string]$adapter.InterfaceGuid; Index = $adapter.ifIndex; Name = $adapter.Name; Family = $family; Static = [bool]$static; Servers = $servers }
+            $rows += [pscustomobject]@{ Guid = [string]$adapter.InterfaceGuid; Index = $adapter.ifIndex; Name = $adapter.Name; Family = $family; Static = [bool]$static; Servers = $servers; Suffix = $suffix }
         }
     }
     return $rows
@@ -48,7 +56,11 @@ function Restore-Dns {
     foreach ($row in $rows) {
         try {
             $adapter = Get-NetAdapter -IncludeHidden | Where-Object { [string]$_.InterfaceGuid -eq $row.Guid } | Select-Object -First 1
-            if (!$adapter) { throw "Netzwerkadapter $($row.Name) ist nicht verfügbar." }
+            if (!$adapter) {
+                # A VPN adapter adopted later may be gone again; there is nothing left to restore.
+                if ($row.Adopted) { continue }
+                throw "Netzwerkadapter $($row.Name) ist nicht verfügbar."
+            }
             $family = $row.Family.ToLowerInvariant()
             $nameArg = "name=$($adapter.ifIndex)"
             if (!$row.Static -or @($row.Servers).Count -eq 0) {
@@ -66,10 +78,65 @@ function Restore-Dns {
     Remove-Item -LiteralPath $backupFile -Force
     Unregister-ScheduledTask -TaskName $recoveryTaskName -Confirm:$false -ErrorAction SilentlyContinue
 }
+function Save-Backup($Rows) {
+    # Temporary file + rename: a crash never leaves a half-written backup behind.
+    $temp = "$backupFile.tmp"
+    [IO.File]::WriteAllText($temp, (ConvertTo-Json -InputObject @($Rows) -Depth 5))
+    Move-Item -LiteralPath $temp -Destination $backupFile -Force
+}
+# Takes over adapters that came up while the protection is on (Wi-Fi, VPN, ...), without
+# touching adapters already in the backup: VPN software that sets DNS itself is not fought.
+# Returns an error text, or an empty string.
+function Sync-NewAdapters {
+    if (!(Test-Path -LiteralPath $backupFile)) { return '' }
+    # No @() around the pipeline: Windows PowerShell 5.1 would nest the JSON array.
+    $parsed = Get-Content -LiteralPath $backupFile -Raw | ConvertFrom-Json
+    $saved = @($parsed | ForEach-Object { $_ })
+    # An adopted adapter that no longer exists counts as new when it comes back.
+    $existing = @(Get-NetAdapter -IncludeHidden | ForEach-Object { [string]$_.InterfaceGuid })
+    $kept = @($saved | Where-Object { !$_.Adopted -or $existing -contains $_.Guid })
+    $added = @()
+    foreach ($row in @(Get-Snapshot)) {
+        if (@($kept | Where-Object { $_.Guid -eq $row.Guid -and $_.Family -eq $row.Family }).Count) { continue }
+        if (@($row.Servers | Where-Object { $_ -eq '127.0.0.1' -or $_ -eq '::1' }).Count) { continue }
+        $row | Add-Member -NotePropertyName Adopted -NotePropertyValue $true
+        $added += $row
+    }
+    if (!$added.Count) {
+        if ($kept.Count -ne $saved.Count) { Save-Backup $kept }
+        return ''
+    }
+    # Persist original state BEFORE touching any adapter.
+    Save-Backup ($kept + $added)
+    $failed = @(); $failures = @()
+    foreach ($row in $added) {
+        $address = if ($row.Family -eq 'IPv4') {'127.0.0.1'} else {'::1'}
+        try { Invoke-Netsh @('interface',$row.Family.ToLowerInvariant(),'set','dnsservers',"name=$($row.Index)",'source=static',"address=$address",'validate=no') }
+        catch { $failed += $row; $failures += "$($row.Name): $($_.Exception.Message)" }
+    }
+    if ($failed.Count) { Save-Backup ($kept + @($added | Where-Object { $failed -notcontains $_ })) }
+    Clear-DnsClientCache
+    return ($failures -join ' ')
+}
+# Domains under a connected VPN's DNS suffix, with the VPN's original DNS servers.
+function Get-SplitDns {
+    if (!(Test-Path -LiteralPath $backupFile)) { return }
+    $parsed = Get-Content -LiteralPath $backupFile -Raw | ConvertFrom-Json
+    $up = @(Get-ActiveAdapters | ForEach-Object { [string]$_.InterfaceGuid })
+    foreach ($row in @($parsed | ForEach-Object { $_ })) {
+        if ($row.Family -ne 'IPv4' -or !$row.Suffix -or $up -notcontains $row.Guid) { continue }
+        $suffix = ([string]$row.Suffix).ToLowerInvariant().TrimEnd('.')
+        # A single public label such as "com" must never redirect every name to a VPN server.
+        if ($suffix -notmatch '^[a-z0-9-]+(\.[a-z0-9-]+)+$|^(corp|lan|local|internal|intranet|home)$') { continue }
+        $servers = @($row.Servers | Where-Object { $_ -match '^\d{1,3}(\.\d{1,3}){3}$' -and $_ -ne '127.0.0.1' })
+        if ($servers.Count) { [pscustomobject]@{ suffix = $suffix; servers = $servers } }
+    }
+}
 if ($Inspect) {
     $rows = @(Get-Snapshot)
     $local = @($rows | Where-Object { @($_.Servers).Count -gt 0 -and @($_.Servers | Where-Object { $_ -ne '127.0.0.1' -and $_ -ne '::1' }).Count -eq 0 })
-    [pscustomobject]@{ adapters = $rows; configured = ($rows.Count -gt 0 -and $local.Count -eq $rows.Count); partial = ($local.Count -gt 0); backup = (Test-Path -LiteralPath $backupFile) } | ConvertTo-Json -Depth 5 -Compress
+    $split = @(); try { $split = @(Get-SplitDns) } catch {}
+    [pscustomobject]@{ adapters = $rows; configured = ($rows.Count -gt 0 -and $local.Count -eq $rows.Count); partial = ($local.Count -gt 0); backup = (Test-Path -LiteralPath $backupFile); splitDns = $split } | ConvertTo-Json -Depth 5 -Compress
     exit
 }
 if ($RecoverOnly) { Restore-Dns; exit }
@@ -155,7 +222,7 @@ function Enable-LocalDns {
     Protect-Storage
     Register-RecoveryTask
     # Persist original state BEFORE touching any adapter.
-    [IO.File]::WriteAllText($backupFile, (ConvertTo-Json -InputObject $rows -Depth 5))
+    Save-Backup $rows
     foreach ($row in $rows) {
         $address = if ($row.Family -eq 'IPv4') {'127.0.0.1'} else {'::1'}
         Invoke-Netsh @('interface',$row.Family.ToLowerInvariant(),'set','dnsservers',"name=$($row.Index)",'source=static',"address=$address",'validate=no')
@@ -173,11 +240,14 @@ $script:currentSession = ''
 $script:currentSeq = -1
 $script:taskState = ''
 $script:taskError = ''
+$script:adapterError = ''
+$script:adapterKey = ''
+$nextAdapterCheck = Get-Date
 $active = $false
 $forget = $false
 
 function Write-State([string]$phase, [string]$message = '') {
-    $state = @{session=$script:currentSession; seq=$script:currentSeq; phase=$phase; error=$message; helperPid=$PID; version=$HelperVersion; task=$script:taskState; taskError=$script:taskError} | ConvertTo-Json -Compress
+    $state = @{session=$script:currentSession; seq=$script:currentSeq; phase=$phase; error=$message; helperPid=$PID; version=$HelperVersion; task=$script:taskState; taskError=$script:taskError; adapterError=$script:adapterError} | ConvertTo-Json -Compress
     # Fresh temporary file + rename: never writes through a pre-existing file.
     $temp = Join-Path $storage ('state-' + [guid]::NewGuid().ToString('N') + '.tmp')
     $stream = [IO.File]::Open($temp, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write)
@@ -244,6 +314,20 @@ try {
                     Write-State 'error' $reason
                 }
             }
+        }
+        # Cheap check of which adapters are up; the full comparison only runs when that changes.
+        if ($running -and $active -and (Get-Date) -ge $nextAdapterCheck) {
+            $nextAdapterCheck = (Get-Date).AddSeconds(5)
+            $message = ''
+            try {
+                $key = @(Get-ActiveAdapters | ForEach-Object { [string]$_.InterfaceGuid } | Sort-Object) -join ','
+                if ($key -ne $script:adapterKey) {
+                    $message = [string](Sync-NewAdapters)
+                    # After a failure the key stays unset, so the next check tries again.
+                    $script:adapterKey = if ($message) { '' } else { $key }
+                } else { $message = $script:adapterError }
+            } catch { $message = $_.Exception.Message; $script:adapterKey = '' }
+            if ($message -ne $script:adapterError) { $script:adapterError = $message; Write-State 'active' }
         }
         if ($running) { Start-Sleep -Milliseconds 300 }
     }
