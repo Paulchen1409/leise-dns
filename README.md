@@ -165,6 +165,12 @@ Icons neu erzeugen: `npx electron scripts/make-icon.js`.
 
 **Version 0.5.0:** Lücken im Verlauf, automatische Übernahme neuer Adapter und VPN-Split-DNS. 37 automatisierte Tests bestehen; die Adapter-Übernahme läuft dabei mit simulierten Adaptern, Split-DNS mit lokalem Test-Server, nicht mit einem echten VPN. Weil sich der Hilfsprozess geändert hat, fragt Windows nach dem Update einmal erneut nach der Freigabe.
 
+**Live auf dem Entwicklungs-PC geprüft (0.5.0, Ethernet):** Umstellung auf den lokalen Dienst, harter Abbruch der App (Original-DNS nach etwa einer Sekunde zurück, Sicherung und Boot-Aufgabe entfernt), Neustart mit gemerkter Freigabe ohne Windows-Abfrage, Sperren von Werbung (NXDOMAIN) und Phishing (`127.53.0.1`), die http- und https-Sperrseite mit Windows-Zertifikatsprüfung.
+
+**Noch nicht live geprüft:** Die Boot-Wiederherstellung nach Stromausfall oder Neustart bei aktivem Schutz, die Übernahme eines echten WLAN- oder VPN-Adapters und Split-DNS mit einem echten VPN. Die https-Sperrseite wurde mit `curl` und ohne Sperrlistenprüfung getestet, nicht in einem Browser.
+
+**Virenschutz mit TLS-Prüfung:** ESET Security lief beim Test mit. In einer Stichprobe aus 80 gelisteten Domains erhielten 52 beim Verbindungsaufbau `access denied`, bevor die Sperrseite erscheinen konnte; das hängt allein von der Domain ab und passt zu ESETs eigener Sperrliste, ist aber nicht direkt nachgewiesen. Geschützt ist man in beiden Fällen, nur erscheint dann nicht die Hinweisseite von Leise DNS.
+
 Der Installer ist nicht mit einem Herausgeberzertifikat signiert. Dafür wäre ein gekauftes Code-Signing-Zertifikat nötig; bis dahin kann Windows SmartScreen beim Installieren warnen.
 
 Der Hintergrunddienst ist ein Electron-Prozess mit separatem Wiederherstellungshelfer, kein dauerhaft installierter Windows-Service.
