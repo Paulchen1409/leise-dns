@@ -5,7 +5,8 @@ const PRESETS = [
   ['stevenblack', 'StevenBlack', 'https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts', 1, 'ads'],
   ['easylist', 'EasyList', 'https://easylist.to/easylist/easylist.txt', 0, 'ads'],
   ['easyprivacy', 'EasyPrivacy', 'https://easylist.to/easylist/easyprivacy.txt', 0, 'ads'],
-  ['urlhaus', 'URLhaus', 'https://urlhaus.abuse.ch/downloads/hostfile/', 1, 'malware'],
+  // URLhaus itself now requires a personal key for downloads; this project republishes its data.
+  ['urlhaus', 'URLhaus', 'https://malware-filter.gitlab.io/malware-filter/urlhaus-filter-hosts.txt', 1, 'malware'],
   ['phishingarmy', 'Phishing Army', 'https://phishing.army/download/phishing_army_blocklist.txt', 1, 'phishing']
 ];
 // Malware and phishing blocks lead to the Leise DNS block page instead of a plain DNS error.
@@ -25,7 +26,9 @@ class Store {
     if (!this.db.prepare('PRAGMA table_info(lists)').all().some(c => c.name === 'category')) this.db.exec("ALTER TABLE lists ADD COLUMN category TEXT NOT NULL DEFAULT 'ads'");
     const insert = this.db.prepare('INSERT OR IGNORE INTO lists(id,name,url,enabled,preset,category) VALUES(?,?,?,?,1,?)');
     const category = this.db.prepare('UPDATE lists SET category=? WHERE id=? AND preset=1');
-    PRESETS.forEach(row => { insert.run(...row); category.run(row[4], row[0]); });
+    // Existing installations follow a changed address. IGNORE: a custom list may already use it.
+    const address = this.db.prepare('UPDATE OR IGNORE lists SET url=? WHERE id=? AND preset=1');
+    PRESETS.forEach(row => { insert.run(...row); category.run(row[4], row[0]); address.run(row[2], row[0]); });
     this.reload(); this.prune();
   }
   get(key, fallback) { const row = this.db.prepare('SELECT value FROM settings WHERE key=?').get(key); return row ? JSON.parse(row.value) : fallback; }

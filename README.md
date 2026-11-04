@@ -4,7 +4,7 @@ Ein lokaler DNS-Adblocker für **diesen Windows-PC**. Electron, Vanilla JavaScri
 
 ## Direkt starten
 
-`Start-LeiseDNS.cmd` doppelklicken. Alternativ `dist/win-unpacked/Leise DNS.exe` starten; dafür muss der ganze Ordner `win-unpacked` zusammenbleiben. Der aktuelle Installer liegt unter `dist/Leise DNS Setup 0.6.0.exe`.
+`Start-LeiseDNS.cmd` doppelklicken. Alternativ `dist/win-unpacked/Leise DNS.exe` starten; dafür muss der ganze Ordner `win-unpacked` zusammenbleiben. Der aktuelle Installer liegt unter `dist/Leise DNS Setup 0.6.1.exe`.
 
 Version 0.2.0 ist ein vollständiges visuelles Redesign im Stil der Liquid-Glass-Designsprache (siehe Abschnitt 3). DNS-Logik, Administratorfreigabe, Wiederherstellung, Datenbank und Filterparser sind unverändert. Für ein Update die laufende App über das Tray-Symbol beenden und den neuen Installer ausführen; Regeln und Statistiken bleiben erhalten.
 
@@ -112,7 +112,7 @@ Die Oberfläche lädt keine Schriftarten, Skripte oder Statistikdienste aus dem 
 
 ## 3a. Sperrseite für Malware und Phishing
 
-Zwei zusätzliche, standardmäßig aktive Listen schützen vor gefährlichen Seiten: **URLhaus** (abuse.ch, Malware) und **Phishing Army** (Phishing). Jede Liste hat eine Kategorie (Werbung & Tracker, Malware, Phishing); das Query-Log zeigt solche Sperren als „Malware“ bzw. „Phishing“ mit Listennamen.
+Zwei zusätzliche, standardmäßig aktive Listen schützen vor gefährlichen Seiten: **URLhaus** (Malware; Daten von abuse.ch, bezogen über [urlhaus-filter](https://gitlab.com/malware-filter/urlhaus-filter), weil abuse.ch für direkte Downloads inzwischen einen persönlichen Schlüssel verlangt) und **Phishing Army** (Phishing). Jede Liste hat eine Kategorie (Werbung & Tracker, Malware, Phishing); das Query-Log zeigt solche Sperren als „Malware“ bzw. „Phishing“ mit Listennamen.
 
 Für Domains dieser beiden Kategorien antwortet der DNS-Dienst nicht mit NXDOMAIN, sondern mit der lokalen Adresse `127.53.0.1` (TTL 60 s, IPv6-Anfragen ohne Daten). Dort liefert Leise DNS eine Hinweisseite aus: gesperrte Domain, Grund, Quelle, warum man die Seite sieht und was jetzt zu tun ist. Die Seite enthält kein JavaScript, setzt eine strikte CSP und lässt sich nicht einbetten. Eine Ausnahme ist bewusst nur in der App möglich (Anfragen → Erlauben, mit zusätzlicher Bestätigung) – nie über die Webseite selbst. Läuft der Hinweisserver nicht (z. B. Port 80 belegt), bleibt es bei NXDOMAIN. Werbung und Tracker werden weiterhin still mit NXDOMAIN blockiert.
 
@@ -167,7 +167,9 @@ Icons neu erzeugen: `npx electron scripts/make-icon.js`.
 
 **Version 0.5.0:** Lücken im Verlauf, automatische Übernahme neuer Adapter und VPN-Split-DNS. 37 automatisierte Tests bestehen; die Adapter-Übernahme läuft dabei mit simulierten Adaptern, Split-DNS mit lokalem Test-Server, nicht mit einem echten VPN. Weil sich der Hilfsprozess geändert hat, fragt Windows nach dem Update einmal erneut nach der Freigabe.
 
-**Version 0.6.0:** Automatische Updates für Filterlisten. Der Hilfsprozess ist unverändert, deshalb fragt Windows beim Update nicht erneut nach der Freigabe.
+**Version 0.6.0:** Automatische Updates für Filterlisten. Der Hilfsprozess ist unverändert, deshalb fragt Windows beim Update nicht erneut nach der Freigabe. Live geprüft: Vier Listen wurden etwa eine Minute nach dem Start von selbst erneuert; alle 114 parallelen DNS-Anfragen wurden beantwortet (Median 19 ms, langsamste 362 ms).
+
+**Version 0.6.1:** Neue Adresse für URLhaus, weil die alte mit HTTP 410 abgeschaltet ist. Bestehende Installationen übernehmen sie automatisch.
 
 **Live auf dem Entwicklungs-PC geprüft (0.5.0, Ethernet):** Umstellung auf den lokalen Dienst, harter Abbruch der App (Original-DNS nach etwa einer Sekunde zurück, Sicherung und Boot-Aufgabe entfernt), Neustart mit gemerkter Freigabe ohne Windows-Abfrage, Sperren von Werbung (NXDOMAIN) und Phishing (`127.53.0.1`), die http- und https-Sperrseite mit Windows-Zertifikatsprüfung.
 

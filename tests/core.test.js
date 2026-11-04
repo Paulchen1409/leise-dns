@@ -93,6 +93,25 @@ test('Autoupdate: täglich fällig, holt Verpasstes nach, wartet nach Fehlern un
     assert.equal(store.reason('d5.example.com'),null);
   }finally{global.fetch=original;store.close();}
 });
+test('Bestehende Installationen übernehmen eine geänderte Adresse einer vordefinierten Liste',()=>{
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'leise-preset-'));const file=path.join(dir,'x.sqlite');
+  const old='https://urlhaus.abuse.ch/downloads/hostfile/';
+  const urlhaus=s=>s.lists().find(l=>l.id==='urlhaus');
+  let store=new Store(file);
+  try {
+    const current=urlhaus(store).url;assert.notEqual(current,old);
+    // State of an older version: old address, downloaded domains, switched off by the user.
+    store.db.prepare('UPDATE lists SET url=?,enabled=0 WHERE id=?').run(old,'urlhaus');
+    store.writeList('urlhaus',['bleibt.example.com'],0);store.close();
+    store=new Store(file);
+    assert.equal(urlhaus(store).url,current);assert.equal(urlhaus(store).count,1);assert.equal(urlhaus(store).enabled,0);
+    // A custom list already using the new address must not stop the app from starting.
+    store.db.prepare('UPDATE lists SET url=? WHERE id=?').run(old,'urlhaus');
+    store.db.prepare('INSERT INTO lists(id,name,url,enabled,preset) VALUES(?,?,?,1,0)').run('eigen','Eigene',current);store.close();
+    store=new Store(file);
+    assert.equal(urlhaus(store).url,old);assert.equal(store.lists().find(l=>l.id==='eigen').url,current);
+  }finally{store.close();fs.rmSync(dir,{recursive:true,force:true});}
+});
 test('Listen-Update schreibt nur Änderungen und liefert dasselbe Ergebnis wie ein volles Neuladen',async()=>{
   const store=new Store(':memory:');
   try {
