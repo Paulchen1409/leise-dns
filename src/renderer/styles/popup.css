@@ -1,0 +1,150 @@
+/* ==========================================================================
+   Tray popup – a compact floating control centre.
+   The window itself is transparent; the glass pane is simulated inside it,
+   because Windows cannot blur the desktop behind a web page reliably.
+   ========================================================================== */
+
+html, body.popup {
+  margin: 0;
+  background: transparent;
+  overflow: hidden;
+}
+body.popup { user-select: none; }
+
+.popup-panel {
+  --aura: rgba(150, 165, 190, 0.18);
+  --inset: 14px;
+  position: relative;
+  margin: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: var(--inset);
+  border-radius: 26px;
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    var(--glass-sheen),
+    radial-gradient(120% 70% at 0% 0%, rgba(74, 110, 180, 0.34), transparent 60%),
+    radial-gradient(90% 60% at 100% 30%, rgba(30, 116, 126, 0.3), transparent 65%),
+    radial-gradient(80% 50% at 20% 110%, rgba(108, 86, 172, 0.2), transparent 70%),
+    linear-gradient(170deg, rgba(26, 32, 44, 0.94), rgba(15, 19, 27, 0.96));
+  box-shadow:
+    var(--glass-edge),
+    0 0 0 0.5px rgba(0, 0, 0, 0.6),
+    0 1px 2px rgba(0, 0, 0, 0.35),
+    0 6px 10px -4px rgba(0, 0, 0, 0.45);
+  animation: popup-in var(--dur-3) var(--ease-out);
+  transition: --aura var(--dur-4) var(--ease);
+}
+.popup-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: var(--glass-rim);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: 3;
+}
+.popup-panel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--glass-specular);
+  pointer-events: none;
+  z-index: -1;
+}
+/* State light, as in the dashboard hero */
+.popup-light {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(90% 55% at 12% 22%, color-mix(in srgb, var(--aura) 100%, transparent), transparent 70%);
+}
+.popup-panel.tone-success { --aura: rgba(110, 224, 176, 0.24); }
+.popup-panel.tone-warning { --aura: rgba(243, 190, 110, 0.22); }
+.popup-panel.tone-danger { --aura: rgba(240, 130, 128, 0.22); }
+.popup-panel.tone-info { --aura: rgba(130, 170, 255, 0.24); }
+:root[data-transparency="reduce"] .popup-panel { background: var(--glass-sheen), linear-gradient(170deg, #1e2533, #161b25); }
+
+@keyframes popup-in { from { opacity: 0; transform: translateY(8px) scale(0.985); } }
+
+.popup-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 4px 0; }
+.popup-brand { display: inline-flex; align-items: center; gap: 9px; font-family: var(--font-display); font-size: 17px; font-weight: 650; letter-spacing: -0.015em; }
+.popup-brand .brand-mark { width: 26px; height: 26px; }
+.popup-brand > span > span { font-weight: 400; color: var(--text-2); }
+.popup-local { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: var(--fw-semibold); color: var(--text-3); }
+.popup-local .icon { color: var(--mint); }
+
+/* Nested radius: panel 26 − inset 14 = 12 → rounded to the next token. */
+.popup-status {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 14px 14px 12px;
+  border-radius: var(--r-md);
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), inset 0 0 0 0.5px rgba(255, 255, 255, 0.07);
+}
+.popup-symbol {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 15px;
+  color: #fff;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.34) 0%, rgba(255, 255, 255, 0.08) 50%, rgba(255, 255, 255, 0) 51%, rgba(255, 255, 255, 0.1) 100%),
+    var(--symbol-tone, linear-gradient(160deg, #7e8ba0, #4c5668));
+  box-shadow: inset 0 1px 0.5px rgba(255, 255, 255, 0.6), inset 0 0 0 0.5px rgba(255, 255, 255, 0.25), 0 0 0 0.5px rgba(0, 0, 0, 0.35), 0 6px 16px -8px var(--symbol-glow, rgba(0, 0, 0, 0.6));
+}
+.popup-symbol .icon { width: 24px; height: 24px; }
+.popup-symbol .busy-badge { right: -5px; bottom: -5px; width: 22px; height: 22px; }
+.popup-symbol .busy-badge .spinner { width: 11px; height: 11px; }
+.tone-success .popup-symbol { --symbol-tone: linear-gradient(160deg, #8cefc4, #2fae82); --symbol-glow: rgba(60, 200, 150, 0.6); color: #06281c; }
+.tone-warning .popup-symbol { --symbol-tone: linear-gradient(160deg, #f7d08d, #cc8a36); --symbol-glow: rgba(220, 150, 60, 0.55); color: #2e1b04; }
+.tone-danger .popup-symbol { --symbol-tone: linear-gradient(160deg, #f4a3a1, #c2505a); --symbol-glow: rgba(210, 90, 95, 0.55); }
+.tone-info .popup-symbol { --symbol-tone: linear-gradient(160deg, #a8c6ff, #3f78e0); --symbol-glow: rgba(80, 140, 240, 0.55); }
+
+.popup-copy h1 { font-family: var(--font-display); font-size: 17px; font-weight: 650; letter-spacing: -0.01em; line-height: 1.25; }
+.popup-copy p { margin-top: 2px; font-size: var(--fs-footnote); line-height: 1.4; color: var(--text-2); }
+
+.popup-error {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-top: -4px;
+  padding: 10px 12px;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-footnote);
+  line-height: 1.45;
+  color: #ffd9d7;
+  background: linear-gradient(0deg, rgba(240, 145, 143, 0.12), rgba(240, 145, 143, 0.12)), rgba(28, 20, 24, 0.95);
+  box-shadow: inset 0 0 0 0.5px rgba(240, 145, 143, 0.4);
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.popup-error .icon { color: var(--red); margin-top: 1px; }
+
+.popup-label { margin: 2px 4px -4px; font-size: 12px; font-weight: var(--fw-semibold); color: var(--text-3); }
+.popup-pause { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.popup-pause .btn { justify-content: flex-start; padding: 0 14px; font-size: var(--fs-footnote); border-radius: var(--r-sm); }
+.popup-pause .btn .icon { color: var(--text-3); width: 17px; height: 17px; }
+.popup-pause .btn[aria-pressed="true"] {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.09));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 0 0 0.5px rgba(255, 255, 255, 0.14);
+}
+.popup-pause .btn[aria-pressed="true"] .icon { color: var(--amber); }
+
+.popup-actions { display: flex; flex-direction: column; gap: 4px; margin-top: 2px; padding-top: 12px; border-top: 1px solid var(--hairline); }
+.popup-actions .btn { width: 100%; }
+.popup-quit { color: var(--text-2); font-weight: var(--fw-medium); font-size: var(--fs-footnote); }
+.popup-quit .icon { color: var(--red); width: 17px; height: 17px; }

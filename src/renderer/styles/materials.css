@@ -1,0 +1,126 @@
+/* ==========================================================================
+   Materials
+   .backdrop   layer A – fixed, never animated
+   .content    layer B – quiet, denser surface, no backdrop blur (cheap)
+   .glass      layer C – floating material: tint + blur + saturation,
+               modulated rim light, inner specular, contact + ambient shadow
+   All decorative layers are pseudo-elements with pointer-events: none.
+   ========================================================================== */
+
+/* ---------- A · Backdrop ---------- */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(70vw 62vh at 8% -8%, var(--field-blue), transparent 68%),
+    radial-gradient(58vw 70vh at 104% 16%, var(--field-petrol), transparent 66%),
+    radial-gradient(42vw 46vh at 26% 108%, var(--field-violet), transparent 70%),
+    radial-gradient(46vw 40vh at 62% 44%, var(--field-mint), transparent 72%),
+    linear-gradient(162deg, #111722 0%, var(--bg) 46%, var(--bg-deep) 100%);
+}
+
+/* Fine grain keeps the large gradients free of banding. */
+.backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ---------- B · Content surface ---------- */
+.content {
+  position: relative;
+  border-radius: var(--r-lg);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.022), rgba(255, 255, 255, 0) 40%), var(--content-fill);
+  box-shadow: var(--content-edge), var(--content-shadow);
+  overflow: clip;
+}
+
+/* ---------- C · Glass ---------- */
+.glass {
+  position: relative;
+  isolation: isolate;
+  background: var(--glass-sheen), var(--glass-tint);
+  -webkit-backdrop-filter: var(--glass-filter);
+  backdrop-filter: var(--glass-filter);
+  box-shadow: var(--glass-edge), var(--shadow-float);
+}
+
+/* Rim light: a 1 px ring whose brightness varies around the shape. */
+.glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: var(--glass-rim);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Inner specular light, painted between material and content. */
+.glass::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--glass-specular);
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Larger floating surfaces read as thicker glass: deeper shadow, softer light. */
+.glass-lg {
+  --rim-angle: 160deg;
+  box-shadow: var(--glass-edge), var(--shadow-float-lg);
+}
+
+/* Small floating glass (status pill, toolbars). */
+.glass-thin {
+  -webkit-backdrop-filter: var(--glass-filter-thin);
+  backdrop-filter: var(--glass-filter-thin);
+  --lens-material: blur(12px) saturate(175%) brightness(1.05);
+}
+
+/* Tinted light inside glass, e.g. the protection state. */
+.glass-glow {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    radial-gradient(60% 120% at 0% 0%, color-mix(in srgb, var(--aura) 90%, transparent), transparent 62%),
+    radial-gradient(50% 90% at 100% 110%, color-mix(in srgb, var(--aura) 35%, transparent), transparent 70%);
+  transition: --aura var(--dur-4) var(--ease);
+}
+
+:root[data-transparency="reduce"] .glass::after { opacity: 0.4; }
+:root[data-transparency="reduce"] .glass-glow { opacity: 0.55; }
+
+/* ---------- Scroll edge: content dissolves softly beneath floating bars ---------- */
+.scroll-edge {
+  position: absolute;
+  inset: 0 calc(var(--page-pad) * -1) -28px;
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0;
+  transition: opacity var(--dur-3) var(--ease);
+  background: linear-gradient(180deg, rgba(12, 16, 23, 0.93) 0%, rgba(12, 16, 23, 0.86) 70%, rgba(12, 16, 23, 0) 100%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-mask: linear-gradient(180deg, #000 0%, #000 74%, transparent 100%);
+  mask: linear-gradient(180deg, #000 0%, #000 74%, transparent 100%);
+}
+
+.is-scrolled .scroll-edge { opacity: 1; }
+:root[data-transparency="reduce"] .scroll-edge {
+  background: linear-gradient(180deg, var(--bg) 0%, var(--bg) 70%, rgba(14, 18, 26, 0) 100%);
+}

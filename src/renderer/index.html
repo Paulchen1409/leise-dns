@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="de" data-transparency="full" data-motion="full" data-refraction="on">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'">
+  <title>Leise DNS</title>
+  <link rel="stylesheet" href="styles/tokens.css">
+  <link rel="stylesheet" href="styles/materials.css">
+  <link rel="stylesheet" href="styles/components.css">
+  <link rel="stylesheet" href="styles/app.css">
+  <script defer src="icons.js"></script>
+  <script defer src="ui.js"></script>
+  <script defer src="lens.js"></script>
+  <script defer src="../../node_modules/chart.js/dist/chart.umd.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <div class="backdrop" aria-hidden="true"></div>
+  <a class="skip-link" href="#main">Zum Inhalt springen</a>
+
+  <aside class="sidebar glass glass-lg" aria-label="Seitenleiste">
+    <div class="sidebar-head drag">
+      <a class="brand" href="#dashboard" aria-label="Leise DNS – Übersicht"><i data-brand="bm"></i><span class="brand-name">Leise <span>DNS</span></span></a>
+    </div>
+    <nav class="nav" aria-label="Hauptnavigation">
+      <span class="nav-indicator" aria-hidden="true"></span>
+      <a href="#dashboard" data-page="dashboard"><i data-icon="overview"></i><span>Übersicht</span></a>
+      <a href="#queries" data-page="queries"><i data-icon="activity"></i><span>Anfragen</span><span class="nav-live" title="Live-Feed"><span class="dot"></span></span></a>
+      <a href="#filters" data-page="filters"><i data-icon="layers"></i><span>Filterlisten</span></a>
+      <a href="#white" data-page="white"><i data-icon="allow"></i><span>Erlaubte Domains</span></a>
+      <a href="#black" data-page="black"><i data-icon="block"></i><span>Gesperrte Domains</span></a>
+      <div class="nav-divider" role="separator"></div>
+      <a href="#settings" data-page="settings"><i data-icon="settings"></i><span>Einstellungen</span></a>
+    </nav>
+    <div class="sidebar-foot">
+      <div class="local-card">
+        <div class="local-title"><i data-icon="computer"></i><span>Nur auf diesem PC</span></div>
+        <p>Router und Heimnetz bleiben unverändert. Regeln und Statistiken bleiben auf diesem Gerät.</p>
+      </div>
+      <p class="version">Leise DNS · Version 0.4.0</p>
+    </div>
+  </aside>
+
+  <main id="main" tabindex="-1">
+    <header class="topbar drag" id="topbar">
+      <div class="scroll-edge" aria-hidden="true"></div>
+      <div class="topbar-titles">
+        <h1 id="page-title">Übersicht</h1>
+        <p id="page-subtitle">Weniger Werbung. Mehr Ruhe im Netz.</p>
+      </div>
+      <div class="topbar-actions">
+        <span class="today" id="today"></span>
+        <span class="status-pill glass glass-thin tone-neutral" id="status-pill" data-lens="12" role="status"><span class="dot"></span><span id="status-pill-text">Wird geprüft</span></span>
+      </div>
+    </header>
+
+    <div id="global-error" class="callout callout-danger page-alert" role="alert" hidden>
+      <i data-icon="alert"></i><div><span class="callout-title">Es ist ein Problem aufgetreten</span><span class="callout-text" id="global-error-text"></span></div>
+    </div>
+
+    <!-- Übersicht -->
+    <section id="page-dashboard" class="page">
+      <div class="hero-wrap tone-neutral" id="status-wrap">
+      <div class="hero-aura" aria-hidden="true"></div>
+      <article class="hero glass glass-lg tone-neutral" id="status-card" data-state="setup" aria-live="polite">
+        <div class="glass-glow" aria-hidden="true"></div>
+        <div class="hero-main">
+          <div class="hero-symbol" id="status-symbol" aria-hidden="true"></div>
+          <div class="hero-copy">
+            <p class="hero-kicker" id="status-label">Dein DNS-Schutz</p>
+            <h2 id="status-title">Schutz wird geprüft …</h2>
+            <p class="hero-desc" id="status-description">Einen Moment bitte.</p>
+          </div>
+          <div class="hero-switch">
+            <button class="switch switch-lg" id="main-toggle" role="switch" aria-checked="false" aria-label="DNS-Schutz einschalten"><span class="switch-track-fill"></span><span class="switch-knob" data-lens="10"><span class="spinner"></span></span></button>
+            <span class="switch-caption" id="switch-caption" aria-hidden="true">Aus</span>
+          </div>
+        </div>
+        <div class="callout callout-danger hero-error" id="status-error" role="alert" hidden>
+          <i data-icon="alert"></i><div><span class="callout-title">Fehlermeldung</span><span class="callout-text" id="status-error-text"></span></div>
+        </div>
+        <div class="hero-foot">
+          <span class="status-text tone-neutral" id="connection"><span class="dot"></span><span id="connection-label">Verbindung wird geprüft</span></span>
+          <button id="setup-button" class="btn btn-protect" hidden><span id="setup-label">Mit einem Klick einrichten</span><i data-icon="arrow"></i></button>
+        </div>
+      </article>
+      </div>
+
+      <div class="pause-row">
+        <div>
+          <h2 class="section-title">Schutz pausieren</h2>
+          <p class="section-sub">Zeitpausen schalten den Schutz danach automatisch wieder ein.</p>
+        </div>
+        <div class="segmented segmented-lg" id="pause-group" role="group" aria-label="Schutz pausieren">
+          <span class="seg-thumb" aria-hidden="true"></span>
+          <button data-mode="5" aria-pressed="false"><i data-icon="timer"></i>5 Minuten</button>
+          <button data-mode="30" aria-pressed="false"><i data-icon="timer"></i>30 Minuten</button>
+          <button data-mode="restart" aria-pressed="false"><i data-icon="restart"></i>Bis App-Neustart</button>
+          <button data-mode="off" aria-pressed="false"><i data-icon="power"></i>Dauerhaft aus</button>
+        </div>
+      </div>
+
+      <div class="section-head">
+        <h2 class="section-title" id="stats-range-label">Dein Tag in Zahlen</h2>
+        <div class="segmented" id="range-group" role="group" aria-label="Zeitraum">
+          <span class="seg-thumb" aria-hidden="true"></span>
+          <button data-days="1" aria-pressed="true">Heute</button>
+          <button data-days="7" aria-pressed="false">7 Tage</button>
+          <button data-days="30" aria-pressed="false">30 Tage</button>
+        </div>
+      </div>
+
+      <section class="metrics content" aria-label="Kennzahlen">
+        <div class="metric">
+          <span class="metric-label">Anfragen gesamt</span>
+          <strong class="metric-value num" id="metric-total">0</strong>
+          <span class="metric-note">DNS-Anfragen dieses PCs</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label"><span class="dot dot-blocked"></span>Blockierte Anfragen</span>
+          <strong class="metric-value num" id="metric-blocked">0</strong>
+          <span class="metric-note">Werbung und Tracker gestoppt</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Blockrate</span>
+          <strong class="metric-value num" id="metric-rate">0<span class="unit">%</span></strong>
+          <span class="meter" aria-hidden="true"><span class="meter-fill" id="rate-meter"></span></span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Aktive Filter-Domains</span>
+          <strong class="metric-value num" id="metric-domains">0</strong>
+          <span class="metric-note">Ohne doppelte Einträge</span>
+        </div>
+      </section>
+
+      <div class="dash-grid">
+        <article class="content panel chart-panel">
+          <header class="panel-head">
+            <div><h2 class="panel-title">Anfragen im Verlauf</h2><p class="panel-sub" id="chart-sub">Pro Stunde, heute</p></div>
+            <div class="legend" id="chart-legend">
+              <span class="legend-item"><i class="swatch swatch-allowed"></i>Erlaubt <b class="num" id="legend-allowed">0</b></span>
+              <span class="legend-item"><i class="swatch swatch-blocked"></i>Blockiert <b class="num" id="legend-blocked">0</b></span>
+              <span class="legend-item"><i class="swatch swatch-error"></i>Fehler <b class="num" id="legend-error">0</b></span>
+            </div>
+          </header>
+          <div class="chart-wrap">
+            <canvas id="traffic-chart" role="img" aria-label="Anfragen pro Stunde"></canvas>
+            <div class="chart-empty" id="chart-empty"><span>Noch keine Anfragen im Zeitraum</span><small>Sobald dein PC Anfragen sendet, erscheint hier der Verlauf.</small></div>
+          </div>
+        </article>
+        <article class="content panel top-panel">
+          <header class="panel-head">
+            <div><h2 class="panel-title">Am häufigsten blockiert</h2><p class="panel-sub">Die acht häufigsten Domains</p></div>
+          </header>
+          <div id="top-domains"></div>
+        </article>
+      </div>
+
+      <article class="content panel recent-panel">
+        <header class="panel-head">
+          <div class="title-row"><h2 class="panel-title">Letzte Anfragen</h2><span class="live" id="recent-live"><span class="dot"></span>Live</span></div>
+          <a class="btn btn-sm btn-quiet" href="#queries">Alle Anfragen<i data-icon="chevron"></i></a>
+        </header>
+        <div id="recent-queries"></div>
+      </article>
+
+      <p class="footnote"><i data-icon="lock" class="icon-sm"></i>Privat bleibt privat: Regeln und Statistiken werden ausschließlich auf diesem PC gespeichert.</p>
+    </section>
+
+    <!-- Anfragen -->
+    <section id="page-queries" class="page" hidden>
+      <div class="log-toolbar glass glass-thin" id="log-toolbar" data-lens="18" role="toolbar" aria-label="Anfragen filtern">
+        <label class="field field-pill log-search"><i data-icon="search"></i><input id="query-search" type="search" placeholder="Domain suchen" aria-label="Anfragen nach Domain filtern" autocomplete="off" spellcheck="false"></label>
+        <div class="segmented" id="query-status" role="group" aria-label="Nach Status filtern">
+          <span class="seg-thumb" aria-hidden="true"></span>
+          <button data-status="all" aria-pressed="true">Alle</button>
+          <button data-status="allowed" aria-pressed="false">Erlaubt</button>
+          <button data-status="blocked" aria-pressed="false">Blockiert</button>
+          <button data-status="error" aria-pressed="false">Fehler</button>
+        </div>
+        <span class="toolbar-spacer"></span>
+        <span class="live" id="feed-label"><span class="dot"></span><span id="feed-label-text">Live</span></span>
+        <button id="feed-toggle" class="btn btn-sm" aria-pressed="false"><i data-icon="pause"></i><span>Anhalten</span></button>
+      </div>
+      <button class="new-pill glass glass-thin" id="new-queries" hidden><i data-icon="arrow" class="icon-sm icon-up"></i><span id="new-queries-text">Neue Anfragen</span></button>
+      <article class="content panel log-panel"><div id="query-table"></div></article>
+      <p class="footnote">Die neuesten 200 Treffer. Gespeichert werden höchstens 10.000 Anfragen der letzten 7 Tage. Ein angehaltener Live-Feed pausiert nur die Anzeige.</p>
+    </section>
+
+    <!-- Filterlisten -->
+    <section id="page-filters" class="page" hidden>
+      <div class="page-actions">
+        <div class="callout">
+          <i data-icon="info"></i>
+          <p>Domainfilter blockieren ganze Adressen. Browserregeln für einzelne Seiteninhalte aus EasyList und EasyPrivacy werden übersprungen und pro Liste gezählt.</p>
+        </div>
+        <button id="update-all" class="btn btn-accent"><i data-icon="refresh"></i><span>Alle aktualisieren</span></button>
+      </div>
+      <section class="content panel list-panel" aria-label="Filterlisten"><div id="filter-lists" class="filter-list"></div></section>
+
+      <article class="content panel form-panel">
+        <header class="form-head">
+          <h2 class="panel-title">Eigene Filterliste hinzufügen</h2>
+          <p class="panel-sub">Hosts-Dateien, Domainlisten und einfache Regeln wie ||example.com^. Nur verschlüsselte HTTPS-Adressen.</p>
+        </header>
+        <form id="add-list" class="form-grid" novalidate>
+          <label class="form-label">Name
+            <span class="field"><input name="name" required maxlength="80" placeholder="Meine Filterliste" autocomplete="off" aria-describedby="list-error"></span>
+          </label>
+          <label class="form-label grow">Adresse der Liste
+            <span class="field"><i data-icon="link"></i><input name="url" type="url" required placeholder="https://example.com/domains.txt" autocomplete="off" spellcheck="false" aria-describedby="list-error"></span>
+          </label>
+          <button class="btn btn-accent" type="submit"><i data-icon="plus"></i><span>Liste hinzufügen</span></button>
+          <p class="field-error form-error" id="list-error" role="alert" hidden></p>
+        </form>
+      </article>
+    </section>
+
+    <section id="page-white" class="page" hidden><div id="white-content" class="rules-layout"></div></section>
+    <section id="page-black" class="page" hidden><div id="black-content" class="rules-layout"></div></section>
+
+    <!-- Einstellungen -->
+    <section id="page-settings" class="page" hidden>
+      <div class="settings-grid">
+        <article class="content panel form-panel">
+          <header class="form-head">
+            <h2 class="panel-title">Verbindung auf diesem PC</h2>
+            <p class="panel-sub">Der Dienst ist nur unter 127.0.0.1 und ::1 erreichbar.</p>
+          </header>
+          <div class="adapter-list" id="adapter-status"></div>
+          <div class="button-row">
+            <button data-mode="active" class="btn btn-protect"><i data-icon="power"></i>Einrichten / einschalten</button>
+            <button data-mode="off" class="btn"><i data-icon="shield-off"></i>Ausschalten &amp; DNS zurücksetzen</button>
+            <button id="check-dns" class="btn btn-quiet"><i data-icon="refresh"></i>Status prüfen</button>
+          </div>
+          <p class="help">Windows fragt bei der Einrichtung nach Administratorrechten. Die ursprünglichen DNS-Einstellungen werden gesichert und beim Pausieren, Ausschalten oder Beenden wiederhergestellt.</p>
+        </article>
+
+        <article class="content panel form-panel">
+          <header class="form-head">
+            <h2 class="panel-title">Start</h2>
+            <p class="panel-sub">Wie Leise DNS mit Windows zusammen startet.</p>
+          </header>
+          <div class="setting-row">
+            <div><h3 id="autostart-label">Mit Windows starten</h3><p>Leise DNS startet nach der Anmeldung unauffällig im Infobereich, ohne Fenster. Ein eingeschalteter Schutz wird fortgesetzt.</p></div>
+            <button class="switch switch-md" id="autostart-toggle" role="switch" aria-checked="false" aria-labelledby="autostart-label"><span class="switch-track-fill"></span><span class="switch-knob"><span class="spinner"></span></span></button>
+          </div>
+          <div class="setting-row">
+            <div>
+              <h3 id="approval-label">Windows-Freigabe merken</h3>
+              <p>Nach einer einmaligen Bestätigung schaltet Leise DNS den Schutz ohne erneute Windows-Abfrage ein – auch nach einem Neustart. Dafür legt Windows eine Aufgabe an, die nur das geschützte Leise-DNS-Hilfsskript mit Administratorrechten startet.</p>
+              <p class="approval-status status-text tone-neutral" id="approval-status"><span class="dot"></span><span id="approval-status-text">Wird geprüft …</span></p>
+            </div>
+            <button class="switch switch-md" id="approval-toggle" role="switch" aria-checked="true" aria-labelledby="approval-label" aria-describedby="approval-status-text"><span class="switch-track-fill"></span><span class="switch-knob"><span class="spinner"></span></span></button>
+          </div>
+        </article>
+
+        <article class="content panel form-panel">
+          <header class="form-head">
+            <h2 class="panel-title">Sperrseite für gefährliche Seiten</h2>
+            <p class="panel-sub">Ruft dein Browser eine bekannte Malware- oder Phishing-Seite auf, zeigt Leise DNS stattdessen eine Hinweisseite mit dem Grund. Werbung und Tracker werden weiterhin still blockiert.</p>
+          </header>
+          <p class="approval-status status-text tone-neutral" id="blockpage-status"><span class="dot"></span><span id="blockpage-status-text">Wird geprüft …</span></p>
+          <div class="setting-row">
+            <div>
+              <h3 id="blockpage-https-label">Auch verschlüsselte Seiten (https)</h3>
+              <p>Fast alle Seiten nutzen https. Damit der Browser die Hinweisseite auch dort zeigt, installiert Leise DNS ein eigenes Stammzertifikat – nur für dein Windows-Konto, Windows fragt dabei nach. Der Schlüssel bleibt verschlüsselt auf diesem PC, und Zertifikate entstehen nur für gesperrte Malware- und Phishing-Domains. Ohne diese Option sind solche Seiten trotzdem gesperrt; der Browser zeigt dann nur eine Fehlermeldung.</p>
+              <p class="approval-status status-text tone-neutral" id="blockpage-https-status"><span class="dot"></span><span id="blockpage-https-status-text">Wird geprüft …</span></p>
+            </div>
+            <button class="switch switch-md" id="blockpage-https-toggle" role="switch" aria-checked="false" aria-labelledby="blockpage-https-label" aria-describedby="blockpage-https-status-text"><span class="switch-track-fill"></span><span class="switch-knob"><span class="spinner"></span></span></button>
+          </div>
+          <div class="button-row">
+            <button class="btn" data-preview="phishing"><i data-icon="shield-alert"></i>Vorschau: Phishing</button>
+            <button class="btn" data-preview="malware"><i data-icon="shield-alert"></i>Vorschau: Malware</button>
+          </div>
+        </article>
+
+        <article class="content panel form-panel">
+          <header class="form-head">
+            <h2 class="panel-title">DNS-Anbieter</h2>
+            <p class="panel-sub">Erlaubte Anfragen werden an diesen Anbieter weitergeleitet – über normales DNS per UDP/TCP.</p>
+          </header>
+          <div class="choice-list" id="upstream" role="group" aria-label="DNS-Anbieter auswählen">
+            <button data-upstream="cloudflare" aria-pressed="false"><i data-icon="globe"></i><span class="choice-text"><span class="choice-title">Cloudflare</span><span class="choice-sub">1.1.1.1</span></span><i data-icon="check" class="choice-check"></i></button>
+            <button data-upstream="google" aria-pressed="false"><i data-icon="globe"></i><span class="choice-text"><span class="choice-title">Google</span><span class="choice-sub">8.8.8.8</span></span><i data-icon="check" class="choice-check"></i></button>
+            <button data-upstream="quad9" aria-pressed="false"><i data-icon="globe"></i><span class="choice-text"><span class="choice-title">Quad9</span><span class="choice-sub">9.9.9.9</span></span><i data-icon="check" class="choice-check"></i></button>
+          </div>
+        </article>
+
+        <article class="content panel form-panel">
+          <header class="form-head">
+            <h2 class="panel-title">Darstellung</h2>
+            <p class="panel-sub">Gilt nur für dieses Gerät. „Automatisch“ folgt den Windows-Einstellungen.</p>
+          </header>
+          <div class="setting-row">
+            <div><h3>Transparenz</h3><p>„Reduziert“ macht Glasflächen deckend und ruhiger.</p></div>
+            <div class="segmented" data-pref="transparency" role="group" aria-label="Transparenz">
+              <span class="seg-thumb" aria-hidden="true"></span>
+              <button data-value="auto" aria-pressed="true">Automatisch</button>
+              <button data-value="reduce" aria-pressed="false">Reduziert</button>
+            </div>
+          </div>
+          <div class="setting-row">
+            <div><h3>Bewegung</h3><p>„Reduziert“ ersetzt Bewegungen durch sofortige Wechsel.</p></div>
+            <div class="segmented" data-pref="motion" role="group" aria-label="Bewegung">
+              <span class="seg-thumb" aria-hidden="true"></span>
+              <button data-value="auto" aria-pressed="true">Automatisch</button>
+              <button data-value="reduce" aria-pressed="false">Reduziert</button>
+            </div>
+          </div>
+          <div class="setting-row">
+            <div><h3>Lichtbrechung an Glaskanten</h3><p>Leichte Brechung an schwebenden Bedienelementen. Bei reduzierter Transparenz immer aus.</p></div>
+            <div class="segmented" data-pref="refraction" role="group" aria-label="Lichtbrechung">
+              <span class="seg-thumb" aria-hidden="true"></span>
+              <button data-value="on" aria-pressed="true">An</button>
+              <button data-value="off" aria-pressed="false">Aus</button>
+            </div>
+          </div>
+        </article>
+
+        <article class="content panel form-panel">
+          <header class="form-head"><h2 class="panel-title">Gut zu wissen</h2></header>
+          <ul class="notes">
+            <li>Das Schließen des Fensters lässt Leise DNS im Infobereich weiterlaufen. Über das Tray-Symbol erreichst du Schalter und Dashboard.</li>
+            <li>Apps mit eigenem verschlüsseltem DNS können den lokalen Filter umgehen. Werbung von derselben Domain wie der Inhalt lässt sich per DNS nicht getrennt sperren.</li>
+            <li>Neue Netzwerkadapter, etwa nach dem Verbinden eines VPN, werden durch Aus- und Einschalten übernommen. Leise DNS ändert keine Routereinstellungen.</li>
+          </ul>
+          <div class="button-row">
+            <button id="quit-app" class="btn btn-danger"><i data-icon="power"></i>App beenden &amp; DNS zurücksetzen</button>
+          </div>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast glass glass-thin" role="status" aria-live="polite" hidden></div>
+
+  <dialog id="confirm-dialog" class="glass glass-lg" aria-labelledby="confirm-title">
+    <div class="dialog-symbol" id="confirm-symbol" aria-hidden="true"><i data-icon="trash"></i></div>
+    <h2 id="confirm-title">Filterliste löschen?</h2>
+    <p id="confirm-text"></p>
+    <div class="dialog-actions">
+      <button id="confirm-cancel" class="btn" autofocus>Abbrechen</button>
+      <button id="confirm-delete" class="btn btn-danger-solid"><i data-icon="trash"></i>Liste löschen</button>
+    </div>
+  </dialog>
+</body>
+</html>
