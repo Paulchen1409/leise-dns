@@ -38,7 +38,7 @@
         <div class="local-title"><i data-icon="computer"></i><span>Nur auf diesem PC</span></div>
         <p>Router und Heimnetz bleiben unverändert. Regeln und Statistiken bleiben auf diesem Gerät.</p>
       </div>
-      <p class="version">Leise DNS · Version 0.5.0</p>
+      <p class="version">Leise DNS · Version 0.6.0</p>
     </div>
   </aside>
 
@@ -198,6 +198,13 @@
         <button id="update-all" class="btn btn-accent"><i data-icon="refresh"></i><span>Alle aktualisieren</span></button>
       </div>
       <section class="content panel list-panel" aria-label="Filterlisten"><div id="filter-lists" class="filter-list"></div></section>
+
+      <article class="content panel form-panel">
+        <div class="setting-row">
+          <div><h3 id="autoupdate-label">Automatisch aktualisieren</h3><p>Eingeschaltete Listen werden täglich im Hintergrund erneuert. War der PC aus, holt Leise DNS das Update nach.</p></div>
+          <button class="switch switch-md" id="autoupdate-toggle" role="switch" aria-checked="true" aria-labelledby="autoupdate-label"><span class="switch-track-fill"></span><span class="switch-knob"><span class="spinner"></span></span></button>
+        </div>
+      </article>
 
       <article class="content panel form-panel">
         <header class="form-head">

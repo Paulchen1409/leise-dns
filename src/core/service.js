@@ -26,7 +26,7 @@ class Service extends EventEmitter {
     // helper: the elevated DNS helper is running, i.e. no Windows approval prompt is pending.
     return {mode:this.mode,dns:this.dns.last,running:this.proxy.running,busy:this.busy || this.dns.busy,error:this.error || this.dns.last?.adapterError || '',helper:this.dns.started===true,
       active:this.proxy.running && this.dns.last.configured && this.dns.started!==false && this.mode.kind==='active',
-      domainCount:this.store.filtered.size,
+      domainCount:this.store.filtered.size,autoUpdate:this.store.get('autoUpdate',true),
       blockPage:this.blockPage?.status() || null,
       approval:{remember:this.store.get('rememberApproval',true),task:this.dns.task?.state || 'unknown',error:this.dns.task?.error || ''},upstream:this.store.get('upstream','cloudflare'),port:this.proxy.port};
   }
@@ -43,7 +43,16 @@ class Service extends EventEmitter {
     this.inspector=setInterval(()=>{if(!this.busy)this.dns.inspect().then(()=>this.changed()).catch(()=>{});},15000);
     this.pruner=setInterval(()=>this.store.prune(),60000);
     this.changed();
-    if(download)for(const l of this.store.lists().filter(l=>l.enabled && !l.updated))this.filters.update(l.id).catch(()=>{});
+    if(download) {
+      for(const l of this.store.lists().filter(l=>l.enabled && !l.updated))this.filters.update(l.id).catch(()=>{});
+      // The first check waits a moment: right after a Windows start the network may not be up yet.
+      this.updateStart=setTimeout(()=>this.autoUpdate(),60000);
+      this.updater=setInterval(()=>this.autoUpdate(),15*60000);
+    }
+  }
+  autoUpdate() {
+    if(this.closing || !this.store.get('autoUpdate',true))return Promise.resolve();
+    return this.filters.autoUpdate(()=>this.closing || !this.store.get('autoUpdate',true));
   }
   async setMode(kind) {
     if(this.busy || this.closing)throw new Error('Bitte kurz warten, die Einstellung wird gerade geändert.');
@@ -78,6 +87,11 @@ class Service extends EventEmitter {
       case 'list:remove':this.filters.remove(args.id);return;
       case 'list:update':return this.filters.update(args.id);
       case 'list:updateAll':return this.filters.updateAll();
+      case 'autoupdate:set':
+        if(typeof args.enabled!=='boolean')throw new Error('Ungültige Einstellung.');
+        this.store.set('autoUpdate',args.enabled);this.changed();
+        this.autoUpdate().catch(()=>{});
+        return;
       case 'upstream':if(!Object.hasOwn(UPSTREAMS,args.value))throw new Error('Unbekannter DNS-Anbieter.');this.store.set('upstream',args.value);this.changed();return;
       case 'approval:set': {
         if(typeof args.remember!=='boolean')throw new Error('Ungültige Einstellung.');
@@ -105,7 +119,7 @@ class Service extends EventEmitter {
   async close() {
     this.closing=true;
     try {await this.dns.close();}catch(e){this.closing=false;throw e;}
-    clearInterval(this.timer);clearInterval(this.inspector);clearInterval(this.pruner);
+    clearInterval(this.timer);clearInterval(this.inspector);clearInterval(this.pruner);clearTimeout(this.updateStart);clearInterval(this.updater);
     await this.proxy.stop();
     await this.blockPage?.stop();
     // Pending filter downloads can still finish. SQLite is checkpointed by each committed transaction.

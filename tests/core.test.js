@@ -49,6 +49,74 @@ async function mockUpstream() {
   const sockets=new Set();const tcp=net.createServer(s=>{sockets.add(s);s.on('close',()=>sockets.delete(s));let b=Buffer.alloc(0);s.on('error',()=>{});s.on('data',c=>{b=Buffer.concat([b,c]);if(b.length>=2 && b.length>=b.readUInt16BE(0)+2){const out=response(b.subarray(2,b.readUInt16BE(0)+2),true);if(out){const h=Buffer.alloc(2);h.writeUInt16BE(out.length);s.end(Buffer.concat([h,out]));}}});});
   await new Promise(r=>tcp.listen(port,'127.0.0.1',r));return {port,get calls(){return calls;},async close(){for(const s of sockets)s.destroy();await Promise.all([new Promise(r=>udp.close(r)),new Promise(r=>tcp.close(r))]);}};
 }
+test('Autoupdate: täglich fällig, holt Verpasstes nach, wartet nach Fehlern und schützt vor kaputten Listen',async()=>{
+  const store=new Store(':memory:');const filters=new Filters(store);const original=global.fetch;
+  const serve=text=>{global.fetch=async url=>{fetched.push(url);return {ok:true,url:'https://example.com',body:(async function*(){yield Buffer.from(text);})()};};};
+  let fetched=[];
+  const updated=(id,t)=>store.db.prepare('UPDATE lists SET updated=? WHERE id=?').run(t,id);
+  const now=Date.now();
+  try {
+    // Only enabled lists; easylist/easyprivacy are off by default.
+    assert.deepEqual(filters.due(now).map(l=>l.id).sort(),['phishingarmy','stevenblack','urlhaus']);
+    updated('stevenblack',now-3600000);updated('urlhaus',now-21*86400000);updated('phishingarmy',now-86400000);
+    assert.deepEqual(filters.due(now).map(l=>l.id).sort(),['phishingarmy','urlhaus']);
+    filters.toggle('urlhaus',false);filters.toggle('phishingarmy',false);
+    assert.deepEqual(filters.due(now),[]);
+    filters.toggle('urlhaus',true);
+    // Failure: reported at the list in plain words, no new attempt within the hour, one after it.
+    global.fetch=async()=>{throw new TypeError('fetch failed');};
+    await filters.autoUpdate();
+    assert.match(store.lists().find(l=>l.id==='urlhaus').error,/nicht erreichbar/);
+    assert.deepEqual(filters.due(),[]);
+    assert.deepEqual(filters.due(Date.now()+3600001).map(l=>l.id),['urlhaus']);
+    filters.attempts.clear();
+    // Success clears the error, and the new domain counts right after the update.
+    serve('neu.example.com\n');
+    await filters.autoUpdate();
+    assert.deepEqual(fetched.length,1);
+    assert.equal(store.lists().find(l=>l.id==='urlhaus').error,null);
+    assert.equal(store.reason('neu.example.com'),'Malware · URLhaus');
+    assert.deepEqual(filters.due(),[]);
+    // Stopping (app closes, switch off) ends the run before the next list.
+    updated('stevenblack',0);updated('urlhaus',0);filters.attempts.clear();fetched=[];
+    await filters.autoUpdate(()=>true);
+    assert.equal(fetched.length,0);
+    // A broken download must not silently remove protection; by hand it can still be applied.
+    const big=Array.from({length:2000},(_,i)=>`d${i}.example.com`);
+    store.replaceList('stevenblack',big,0);updated('stevenblack',0);
+    serve('nur.example.com\n');
+    await filters.update('stevenblack',{guarded:true}).then(()=>assert.fail('muss abgelehnt werden'),e=>assert.match(e.message,/ungewöhnlich klein/));
+    assert.equal(store.reason('d5.example.com'),'Filterliste');
+    assert.equal(store.lists().find(l=>l.id==='stevenblack').count,2000);
+    await filters.update('stevenblack');
+    assert.equal(store.lists().find(l=>l.id==='stevenblack').count,1);
+    assert.equal(store.reason('d5.example.com'),null);
+  }finally{global.fetch=original;store.close();}
+});
+test('Listen-Update schreibt nur Änderungen und liefert dasselbe Ergebnis wie ein volles Neuladen',async()=>{
+  const store=new Store(':memory:');
+  try {
+    assert.equal(store.writeList('stevenblack',['a.example.com','b.example.com'],0),true);
+    assert.equal(store.writeList('stevenblack',['b.example.com','a.example.com'],3),false);
+    assert.equal(store.lists().find(l=>l.id==='stevenblack').skipped,3);
+    assert.equal(store.writeList('stevenblack',['b.example.com','c.example.com'],0),true);
+    store.writeList('phishingarmy',['both.example.com','p.example.com'],0);
+    store.writeList('urlhaus',['both.example.com','m.example.com'],0);
+    store.writeList('easylist',['off.example.com'],0);
+    await store.reloadLists();
+    const asyncResult={filtered:[...store.filtered].sort(),threats:[...store.threats.entries()].sort()};
+    store.reload();
+    assert.deepEqual({filtered:[...store.filtered].sort(),threats:[...store.threats.entries()].sort()},asyncResult);
+    assert.equal(store.threats.get('both.example.com').category,'phishing');
+    assert.equal(store.filtered.has('off.example.com'),false);assert.equal(store.filtered.has('a.example.com'),false);
+    // A rule change during a slow reload wins; the older reload must not overwrite newer data.
+    store.writeList('stevenblack',Array.from({length:12000},(_,i)=>`x${i}.example.com`),0);
+    const pending=store.reloadLists();
+    store.writeList('stevenblack',['neuer.example.com'],0);store.reload();
+    await pending;
+    assert.equal(store.filtered.has('neuer.example.com'),true);assert.equal(store.filtered.has('x5.example.com'),false);
+  }finally{store.close();}
+});
 test('Split-DNS: Namen unter dem VPN-Suffix gehen an den VPN-Server, Sperren gelten weiter',async()=>{
   const upstream=await mockUpstream();const store=new Store(':memory:');store.addRule('black','ads.corp.example');
   const proxy=new DnsProxy({store,port:0,hosts:['127.0.0.1'],upstreamPort:upstream.port,timeout:100});

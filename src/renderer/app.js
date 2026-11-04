@@ -197,6 +197,7 @@ function renderStatus(s) {
 
   press($('#upstream'), '[data-upstream]', b => b.dataset.upstream === s.upstream);
   $('#autostart-toggle').setAttribute('aria-checked', String(!!s.autostart));
+  $('#autoupdate-toggle').setAttribute('aria-checked', String(!!s.autoUpdate));
   renderApproval(s);
   renderBlockPage(s);
 
@@ -714,6 +715,11 @@ $('#add-list').addEventListener('submit', e => {
 $('#add-list').addEventListener('input', e => { e.target.closest('.field')?.classList.remove('is-invalid'); });
 $('#add-list').addEventListener('reset', e => { e.target.querySelectorAll('.is-invalid').forEach(f => f.classList.remove('is-invalid')); showFormError(e.target, ''); });
 
+$('#autoupdate-toggle').addEventListener('click', e => {
+  const enabled = e.currentTarget.getAttribute('aria-checked') !== 'true';
+  e.currentTarget.setAttribute('aria-checked', String(enabled));
+  quietly(action(e.currentTarget, () => api.call('autoupdate:set', { enabled }), enabled ? 'Filterlisten werden ab jetzt täglich aktualisiert.' : 'Automatische Updates ausgeschaltet.'));
+});
 $('#autostart-toggle').addEventListener('click', e => {
   const enabled = e.currentTarget.getAttribute('aria-checked') !== 'true';
   e.currentTarget.setAttribute('aria-checked', String(enabled));

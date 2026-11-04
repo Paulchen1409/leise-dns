@@ -4,7 +4,7 @@ Ein lokaler DNS-Adblocker für **diesen Windows-PC**. Electron, Vanilla JavaScri
 
 ## Direkt starten
 
-`Start-LeiseDNS.cmd` doppelklicken. Alternativ `dist/win-unpacked/Leise DNS.exe` starten; dafür muss der ganze Ordner `win-unpacked` zusammenbleiben. Der aktuelle Installer liegt unter `dist/Leise DNS Setup 0.5.0.exe`.
+`Start-LeiseDNS.cmd` doppelklicken. Alternativ `dist/win-unpacked/Leise DNS.exe` starten; dafür muss der ganze Ordner `win-unpacked` zusammenbleiben. Der aktuelle Installer liegt unter `dist/Leise DNS Setup 0.6.0.exe`.
 
 Version 0.2.0 ist ein vollständiges visuelles Redesign im Stil der Liquid-Glass-Designsprache (siehe Abschnitt 3). DNS-Logik, Administratorfreigabe, Wiederherstellung, Datenbank und Filterparser sind unverändert. Für ein Update die laufende App über das Tray-Symbol beenden und den neuen Installer ausführen; Regeln und Statistiken bleiben erhalten.
 
@@ -126,6 +126,8 @@ StevenBlack ist voreingestellt und aktiv. EasyList und EasyPrivacy können zuges
 
 Unterstützt werden Hosts-Dateien, eine Domain pro Zeile und einfache `||domain.example^`-Regeln. **Browserregeln, Ausnahmen, Pfade, kosmetische Filter und Regeln mit Optionen werden nicht als komplette Domain-Sperren interpretiert.** Nicht nutzbare Einträge werden gezählt. EasyList/EasyPrivacy werden damit bewusst nur teilweise unterstützt. Eine leere, ungültige oder fehlgeschlagene neue Liste ersetzt niemals eine funktionierende Liste. Downloads sind auf 32 MB und 45 Sekunden begrenzt.
 
+**Automatische Updates** (Filterlisten, standardmäßig an): Eingeschaltete Listen werden aktualisiert, sobald ihr letztes Update mehr als einen Tag zurückliegt. Die App prüft das eine Minute nach dem Start und danach alle 15 Minuten; war der PC aus, wird das Update nachgeholt. Schlägt ein Versuch fehl, steht der Grund bei der Liste und der nächste Versuch folgt frühestens nach einer Stunde. Hat eine neue Liste weniger als die Hälfte der bisherigen Domains (ab 1.000 Einträgen), wird sie nicht automatisch übernommen, weil das eher auf einen kaputten Download hindeutet; „Aktualisieren“ übernimmt sie von Hand. Damit der DNS-Dienst während eines Updates weiter antwortet, werden nur geänderte Domains geschrieben und die Listen schrittweise neu eingelesen; die bisherigen Sperren gelten, bis das abgeschlossen ist.
+
 Domainzähler pro Liste zählen eindeutige Domains innerhalb dieser Liste; eine Domain kann in mehreren Listen vorkommen. Die Dashboard-Zahl entfernt Überschneidungen zwischen aktivierten Listen. Eigene Blacklist-Einträge werden separat gehalten und sind nicht Teil dieser Filterlisten-Zahl.
 
 Whitelist und Blacklist haben je eine eigene Seite mit Live-Suche. Ein Eintrag schließt Unterdomains ein; `example.com` trifft `a.example.com`, aber nicht `notexample.com`. Dieselbe exakte Domain wird beim Hinzufügen in die andere Liste verschoben. Eine erlaubte übergeordnete Domain hat weiterhin Vorrang vor einer spezielleren Sperre.
@@ -164,6 +166,8 @@ Icons neu erzeugen: `npx electron scripts/make-icon.js`.
 **Version 0.4.0:** Sperrseite für Malware und Phishing. 34 automatisierte Tests bestehen, unter anderem DNS-Antworten, Inhalt und Sicherheits-Header der Hinweisseite, TLS mit vollständiger Zertifikatsprüfung, Ausstellung nur für gesperrte Namen, verschlüsselte Ablage und abgebrochene Windows-Abfrage. Der Oberflächentest prüft die echte DNS-Antwort und die ausgelieferte Seite auf Testports. Das Installieren des Zertifikats in Windows ist nicht automatisiert getestet, weil es eine Windows-Abfrage erfordert.
 
 **Version 0.5.0:** Lücken im Verlauf, automatische Übernahme neuer Adapter und VPN-Split-DNS. 37 automatisierte Tests bestehen; die Adapter-Übernahme läuft dabei mit simulierten Adaptern, Split-DNS mit lokalem Test-Server, nicht mit einem echten VPN. Weil sich der Hilfsprozess geändert hat, fragt Windows nach dem Update einmal erneut nach der Freigabe.
+
+**Version 0.6.0:** Automatische Updates für Filterlisten. Der Hilfsprozess ist unverändert, deshalb fragt Windows beim Update nicht erneut nach der Freigabe.
 
 **Live auf dem Entwicklungs-PC geprüft (0.5.0, Ethernet):** Umstellung auf den lokalen Dienst, harter Abbruch der App (Original-DNS nach etwa einer Sekunde zurück, Sicherung und Boot-Aufgabe entfernt), Neustart mit gemerkter Freigabe ohne Windows-Abfrage, Sperren von Werbung (NXDOMAIN) und Phishing (`127.53.0.1`), die http- und https-Sperrseite mit Windows-Zertifikatsprüfung.
 

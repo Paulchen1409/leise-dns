@@ -32,6 +32,7 @@ class Store {
   set(key, value) { this.db.prepare('INSERT OR REPLACE INTO settings VALUES(?,?)').run(key, JSON.stringify(value)); }
   transaction(fn) { this.db.exec('BEGIN'); try { const r = fn(); this.db.exec('COMMIT'); return r; } catch(e) { this.db.exec('ROLLBACK'); throw e; } }
   reload() {
+    this.generation = (this.generation || 0) + 1;
     this.white = new Set(); this.black = new Set();
     for (const r of this.db.prepare('SELECT * FROM rules').all()) this[r.kind].add(r.domain);
     this.filtered = new Set(this.db.prepare('SELECT DISTINCT domain FROM list_domains JOIN lists ON lists.id=list_domains.list_id WHERE enabled=1').all().map(r => r.domain));
@@ -39,6 +40,26 @@ class Store {
     for (const r of this.db.prepare("SELECT d.domain, l.category, l.name FROM list_domains d JOIN lists l ON l.id=d.list_id WHERE l.enabled=1 AND l.category IN ('malware','phishing') ORDER BY l.category DESC").all()) {
       if (!this.threats.has(r.domain)) this.threats.set(r.domain, { category: r.category, list: r.name });
     }
+  }
+  // Same result as reload() for the filter lists, in small steps: DNS answers keep flowing because
+  // this shares the process with the DNS service. The old sets stay in use until the swap at the end.
+  async reloadLists() {
+    const generation = this.generation = (this.generation || 0) + 1;
+    const pause = () => new Promise(resolve => setImmediate(resolve));
+    const stale = () => generation !== this.generation; // A newer reload has fresher data.
+    const filtered = new Set(); const threats = new Map(); let n = 0;
+    for (const r of this.db.prepare('SELECT domain FROM list_domains JOIN lists ON lists.id=list_domains.list_id WHERE enabled=1').iterate()) {
+      filtered.add(r.domain);
+      if (++n % 5000 === 0) { await pause(); if (stale()) return; }
+    }
+    // Phishing first: a domain on both kinds of list counts as phishing, as in reload().
+    for (const category of ['phishing', 'malware']) {
+      for (const r of this.db.prepare('SELECT d.domain, l.name FROM list_domains d JOIN lists l ON l.id=d.list_id WHERE l.enabled=1 AND l.category=?').iterate(category)) {
+        if (!threats.has(r.domain)) threats.set(r.domain, { category, list: r.name });
+        if (++n % 5000 === 0) { await pause(); if (stale()) return; }
+      }
+    }
+    if (!stale()) { this.filtered = filtered; this.threats = threats; }
   }
   // Malware/phishing match for a domain (including subdomains), unless it is allowed.
   threat(domain) {
@@ -64,15 +85,24 @@ class Store {
   }
   removeRule(kind, domain) { this.db.prepare('DELETE FROM rules WHERE domain=? AND kind=?').run(domain,kind); this.reload(); }
   lists() { return this.db.prepare('SELECT lists.*, (SELECT COUNT(*) FROM list_domains WHERE list_id=lists.id) AS count FROM lists ORDER BY preset DESC,name').all(); }
-  replaceList(id, domains, skipped) {
-    this.transaction(() => {
+  // Writes only what changed, which keeps the transaction short. Returns whether anything changed.
+  writeList(id, domains, skipped) {
+    return this.transaction(() => {
       if (!this.db.prepare('SELECT id FROM lists WHERE id=?').get(id)) throw new Error('Liste wurde entfernt.');
-      this.db.prepare('DELETE FROM list_domains WHERE list_id=?').run(id);
+      const wanted = new Set(domains);
+      const remove = this.db.prepare('DELETE FROM list_domains WHERE list_id=? AND domain=?');
       const insert = this.db.prepare('INSERT OR IGNORE INTO list_domains VALUES(?,?)');
-      for (const d of domains) insert.run(id, d);
+      const present = new Set(); let changed = false;
+      for (const { domain } of this.db.prepare('SELECT domain FROM list_domains WHERE list_id=?').all(id)) {
+        present.add(domain);
+        if (!wanted.has(domain)) { remove.run(id, domain); changed = true; }
+      }
+      for (const d of wanted) if (!present.has(d)) { insert.run(id, d); changed = true; }
       this.db.prepare('UPDATE lists SET updated=?,skipped=?,error=NULL WHERE id=?').run(Date.now(), skipped, id);
-    }); this.reload();
+      return changed;
+    });
   }
+  replaceList(id, domains, skipped) { this.writeList(id, domains, skipped); this.reload(); }
   log(entry) {
     const now = entry.time || Date.now(); const hour = Math.floor(now / 3600000) * 3600000;
     const d = new Date(now); const day = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
