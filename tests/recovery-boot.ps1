@@ -1,11 +1,11 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 $testRoot = Join-Path ([IO.Path]::GetTempPath()) ('leise-recovery-' + [guid]::NewGuid())
 New-Item -ItemType Directory -Path $testRoot | Out-Null
 try {
     $tokens = $null; $errors = $null
     $ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot '../src/platform/dns-helper.ps1'), [ref]$tokens, [ref]$errors)
     if ($errors.Count) { throw 'PowerShell syntax error' }
-    foreach ($name in 'Restore-Dns','Write-RecoveryLog','Wait-RecoveryAdapters','Invoke-Recovery') {
+    foreach ($name in 'Restore-Dns','Write-RecoveryLog','Wait-RecoveryAdapters','Test-LiveHelper','Invoke-Recovery') {
         $definition = $ast.Find({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name}, $true)
         if (!$definition) { throw "Missing function $name" }
         . ([scriptblock]::Create($definition.Extent.Text))
@@ -68,6 +68,21 @@ try {
     $script:calls = @()
     Invoke-Recovery
     if ($script:calls.Count -or (Test-Path -LiteralPath $backupFile)) { throw 'A vanished adopted adapter must not block recovery' }
+
+    # A running helper owns the backup: the sign-in run must not undo live protection.
+    [IO.File]::WriteAllText($backupFile, $fixture)
+    function Get-NetAdapter { param([switch]$IncludeHidden) [pscustomobject]@{ InterfaceGuid = $guid; ifIndex = 12 } }
+    $stateFile = Join-Path $testRoot 'helper-S-1-5-21-1.state.json'
+    [IO.File]::WriteAllText($stateFile, (@{ phase = 'active'; helperPid = $PID } | ConvertTo-Json -Compress))
+    $script:calls = @()
+    Invoke-Recovery
+    if ($script:calls.Count -or !(Test-Path -LiteralPath $backupFile)) { throw 'A live helper must keep protection and the backup' }
+    if ((Read-Log) -notmatch 'Hilfsdienst l') { throw 'Skipping for a live helper must be logged' }
+
+    # The helper has stopped: recovery runs.
+    [IO.File]::WriteAllText($stateFile, (@{ phase = 'stopped'; helperPid = $PID } | ConvertTo-Json -Compress))
+    Invoke-Recovery
+    if ($script:calls.Count -ne 1 -or (Test-Path -LiteralPath $backupFile)) { throw 'A stopped helper must not block recovery' }
 
     Write-Output 'PASS: boot recovery waits, logs, keeps the backup, drops an empty task'
 } finally {

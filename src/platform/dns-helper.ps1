@@ -34,8 +34,13 @@ function Test-IgnoredAdapter($Adapter) {
     $text = "$($Adapter.Name) $($Adapter.InterfaceDescription) $($Adapter.Description)"
     return $text -match 'Hyper-V|vEthernet|Docker|WSL|VirtualBox|VMware|Bluetooth|Teredo|isatap|6to4|Wi-Fi Direct|Mobile Hotspot|Kernel Debug|Npcap Loopback'
 }
+# A Hyper-V "external switch" moves the real internet path onto a vEthernet adapter.
+# An adapter with a default route is never ignored, whatever its name says.
+function Test-DefaultRoute($Adapter) {
+    return @(Get-NetRoute -InterfaceIndex $Adapter.ifIndex -DestinationPrefix '0.0.0.0/0','::/0' -ErrorAction SilentlyContinue).Count -gt 0
+}
 function Test-IgnoredRow($Row) {
-    if ($Row.Vpn) { return $false }
+    if ($Row.Vpn -or $Row.Gateway) { return $false }
     return (Test-IgnoredAdapter $Row)
 }
 function Test-HasForeignDns($Servers) {
@@ -48,7 +53,11 @@ function Test-LocalServers($Servers) {
 function Get-Snapshot {
     $rows = @()
     foreach ($adapter in Get-ActiveAdapters) {
-        if (Test-IgnoredAdapter $adapter) { continue }
+        $gateway = $false
+        if (Test-IgnoredAdapter $adapter) {
+            $gateway = [bool](Test-DefaultRoute $adapter)
+            if (-not $gateway) { continue }
+        }
         # Only a VPN's suffix is used for split DNS; a suffix from any other network is ignored.
         $vpn = [bool](Test-VpnAdapter $adapter)
         $suffix = ''
@@ -60,7 +69,7 @@ function Get-Snapshot {
             $key = "HKLM:\SYSTEM\CurrentControlSet\Services\$regBase\Parameters\Interfaces\$($adapter.InterfaceGuid)"
             $static = (Get-ItemProperty -LiteralPath $key -Name NameServer -ErrorAction SilentlyContinue).NameServer
             $servers = @((Get-DnsClientServerAddress -InterfaceIndex $adapter.ifIndex -AddressFamily $family).ServerAddresses)
-            $rows += [pscustomobject]@{ Guid = [string]$adapter.InterfaceGuid; Index = $adapter.ifIndex; Name = $adapter.Name; Family = $family; Static = [bool]$static; Servers = $servers; Suffix = $suffix; Description = [string]$adapter.InterfaceDescription; Vpn = $vpn }
+            $rows += [pscustomobject]@{ Guid = [string]$adapter.InterfaceGuid; Index = $adapter.ifIndex; Name = $adapter.Name; Family = $family; Static = [bool]$static; Servers = $servers; Suffix = $suffix; Description = [string]$adapter.InterfaceDescription; Vpn = $vpn; Gateway = $gateway }
         }
     }
     return $rows
@@ -139,6 +148,23 @@ function Wait-RecoveryAdapters {
         if ($poll -gt 0) { Start-Sleep -Seconds $poll }
     } while ($true)
 }
+# A helper that is running right now owns the backup. The boot task also fires at every
+# sign-in, and the app may already have switched protection back on by then: recovery must
+# never undo live protection. State files from before the last boot never count, so a
+# process id reused after a crash cannot block recovery.
+function Test-LiveHelper {
+    try {
+        $boot = (Get-CimInstance -ClassName Win32_OperatingSystem).LastBootUpTime
+        foreach ($file in @(Get-ChildItem -LiteralPath $storage -Filter 'helper-*.state.json' -File -ErrorAction SilentlyContinue)) {
+            if ($file.LastWriteTime -lt $boot) { continue }
+            $state = Get-Content -LiteralPath $file.FullName -Raw | ConvertFrom-Json
+            if (@('ready', 'active') -notcontains [string]$state.phase) { continue }
+            $process = Get-Process -Id ([int]$state.helperPid) -ErrorAction SilentlyContinue
+            if ($process -and $process.ProcessName -match '^(powershell|pwsh)$' -and $process.StartTime -le $file.LastWriteTime) { return $true }
+        }
+    } catch { }
+    return $false
+}
 function Invoke-Recovery {
     Write-RecoveryLog 'Wiederherstellung gestartet.'
     if (!(Test-Path -LiteralPath $backupFile)) {
@@ -146,9 +172,18 @@ function Invoke-Recovery {
         Write-RecoveryLog 'Keine Sicherung. Boot-Aufgabe entfernt.'
         return
     }
+    if (Test-LiveHelper) {
+        Write-RecoveryLog 'Der Hilfsdienst läuft, der Schutz ist aktiv. Nichts zurückgesetzt; die Aufgabe bleibt für einen Absturz.'
+        return
+    }
     if (-not (Wait-RecoveryAdapters)) {
         Write-RecoveryLog 'Adapter aus der Sicherung sind noch nicht sichtbar. Sicherung bleibt, die Aufgabe versucht es erneut.'
         throw 'Netzwerkadapter aus der Sicherung sind noch nicht verfügbar.'
+    }
+    # The app may have started during the wait.
+    if (Test-LiveHelper) {
+        Write-RecoveryLog 'Der Hilfsdienst ist inzwischen gestartet. Nichts zurückgesetzt.'
+        return
     }
     try {
         Restore-Dns
@@ -370,6 +405,7 @@ $script:taskError = ''
 $script:adapterError = ''
 $script:adapterKey = ''
 $nextAdapterCheck = Get-Date
+$nextContestCheck = Get-Date
 $active = $false
 $forget = $false
 
@@ -448,7 +484,10 @@ try {
             $message = ''
             try {
                 $key = @(Get-ActiveAdapters | ForEach-Object { [string]$_.InterfaceGuid } | Sort-Object) -join ','
-                if ($key -ne $script:adapterKey) {
+                # VPN software can overwrite DNS without any adapter coming or going, so the
+                # full comparison also runs every 15 seconds; it changes nothing when all is local.
+                if ($key -ne $script:adapterKey -or (Get-Date) -ge $nextContestCheck) {
+                    $nextContestCheck = (Get-Date).AddSeconds(15)
                     $message = [string](Sync-NewAdapters)
                     # After a failure the key stays unset, so the next check tries again.
                     $script:adapterKey = if ($message) { '' } else { $key }

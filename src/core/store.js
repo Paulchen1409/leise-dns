@@ -1,6 +1,5 @@
 const { DatabaseSync } = require('node:sqlite');
 const { normalizeDomain, matches } = require('./domains');
-const { DomainSet, DomainMap } = require('./domain-set');
 // [id, name, url, enabled by default, category]
 const PRESETS = [
   ['stevenblack', 'StevenBlack', 'https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts', 1, 'ads'],
@@ -42,9 +41,9 @@ class Store {
     this.generation = (this.generation || 0) + 1;
     this.white = new Set(); this.black = new Set();
     for (const r of this.db.prepare('SELECT * FROM rules').all()) this[r.kind].add(r.domain);
-    this.filtered = new DomainSet();
+    this.filtered = new Set();
     for (const r of this.db.prepare('SELECT DISTINCT domain FROM list_domains JOIN lists ON lists.id=list_domains.list_id WHERE enabled=1').all()) this.filtered.add(r.domain);
-    this.threats = new DomainMap();
+    this.threats = new Map();
     for (const r of this.db.prepare("SELECT d.domain, l.category, l.name FROM list_domains d JOIN lists l ON l.id=d.list_id WHERE l.enabled=1 AND l.category IN ('malware','phishing') ORDER BY l.category DESC").all()) {
       if (!this.threats.has(r.domain)) this.threats.set(r.domain, { category: r.category, list: r.name });
     }
@@ -55,7 +54,7 @@ class Store {
     const generation = this.generation = (this.generation || 0) + 1;
     const pause = () => new Promise(resolve => setImmediate(resolve));
     const stale = () => generation !== this.generation; // A newer reload has fresher data.
-    const filtered = new DomainSet(); const threats = new DomainMap(); let n = 0;
+    const filtered = new Set(); const threats = new Map(); let n = 0;
     for (const r of this.db.prepare('SELECT domain FROM list_domains JOIN lists ON lists.id=list_domains.list_id WHERE enabled=1').iterate()) {
       filtered.add(r.domain);
       if (++n % 5000 === 0) { await pause(); if (stale()) return; }
@@ -155,7 +154,7 @@ class Store {
     const usage = process.memoryUsage();
     return {
       rss: usage.rss, heapUsed: usage.heapUsed,
-      filtered: this.filtered.size, nodes: (this.filtered.nodes || 0) + (this.threats.nodes || 0),
+      filtered: this.filtered.size,
       threats: this.threats.size, rules: this.white.size + this.black.size
     };
   }

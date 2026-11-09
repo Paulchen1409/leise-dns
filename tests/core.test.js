@@ -24,26 +24,14 @@ test('Regeln lassen sich sichern und wieder laden; die Erlaubnis gewinnt',()=>{
     assert.equal(store.rules('white')[0],'only.example.com');
   } finally { store.close(); }
 });
-test('Domain-Trie entspricht der Mengenprüfung und nennt den Speicher',()=>{
-  const {DomainSet,DomainMap}=require('../src/core/domain-set');
-  const set=new DomainSet();const plain=new Set();
-  for(let i=0;i<500;i++){const d=`a${i}.b${i%7}.example.com`;set.add(d);plain.add(d);set.add(d);}
-  assert.equal(set.size,500);assert.ok(set.nodes<500*4);
-  for(const d of plain){assert.equal(set.has(d),true);assert.equal(matches(set,'zz.'+d),true);assert.equal(matches(set,'not'+d),false);}
-  assert.deepEqual([...set].sort(),[...plain].sort());
-  const map=new DomainMap();
-  map.set('both.example.com',{category:'phishing',list:'P'});
-  assert.equal(map.has('both.example.com'),true);
-  map.set('both.example.com',{category:'malware',list:'M'});
-  assert.equal(map.size,1);assert.equal(map.get('both.example.com').list,'M');
-  assert.deepEqual([...map.entries()],[['both.example.com',{category:'malware',list:'M'}]]);
+test('Speicheranzeige nennt Heap und Filterdomains',()=>{
   const store=new Store(':memory:');
   try {
     store.replaceList('stevenblack',['ads.example.com','tracker.example.com'],0);
     assert.equal(store.filtered.has('ads.example.com'),true);
     assert.equal(store.reason('sub.ads.example.com'),'Filterliste');
     const mem=store.memory();
-    assert.equal(typeof mem.heapUsed,'number');assert.ok(mem.heapUsed>0);assert.equal(mem.filtered,2);assert.ok(mem.nodes>2);
+    assert.equal(typeof mem.heapUsed,'number');assert.ok(mem.heapUsed>0);assert.equal(mem.filtered,2);
   } finally { store.close(); }
 });
 test('Domain-Eingaben werden normalisiert; URLs und ungültige Namen abgelehnt',()=>{

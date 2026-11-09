@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 $testRoot = Join-Path ([IO.Path]::GetTempPath()) ('leise-adopt-' + [guid]::NewGuid())
 New-Item -ItemType Directory -Path $testRoot | Out-Null
 try {
@@ -78,6 +78,14 @@ try {
     $script:snapshot = @($script:snapshot | Where-Object { $_.Guid -ne $docker }) + @((Row $docker 30 'vEthernet (WSL)' 'IPv4' '172.16.0.1' '' 'Hyper-V Virtual Ethernet Adapter'))
     if (Sync-NewAdapters) { throw 'An ignored adapter must not report an error' }
     if ($script:calls.Count -or (Read-Backup).Count -ne $beforeDocker -or @((Read-Backup) | Where-Object { $_.Guid -eq $docker }).Count) { throw 'Hyper-V/Docker/hotspot adapters must not be adopted' }
+
+    # A Hyper-V external switch carries the real internet path: adopted despite its name.
+    $ext = '{44444444-4444-4444-4444-444444444444}'
+    $script:adapters = @($lan, $vpn, $docker, $ext)
+    $script:snapshot += @(((Row $ext 31 'vEthernet (Extern)' 'IPv4' '192.168.2.1' '' 'Hyper-V Virtual Ethernet Adapter #2') | Add-Member -NotePropertyName Gateway -NotePropertyValue $true -PassThru))
+    $script:calls = @()
+    Sync-NewAdapters | Out-Null
+    if (@($script:calls | Where-Object { $_ -match 'name=31 ' }).Count -ne 1) { throw "An external switch with a default route must be adopted: $($script:calls -join ' | ')" }
 
     # Public single-label suffix is ignored.
     $script:adapters = @($lan, $vpn)

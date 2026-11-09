@@ -1,4 +1,4 @@
-# Signs an already built Leise DNS file with signtool.
+﻿# Signs an already built Leise DNS file with signtool.
 # No certificate configured: exits 0 and signs nothing.
 # Password is read from the environment, never from a script argument.
 #   LEISE_SIGN_PFX + LEISE_SIGN_PASSWORD

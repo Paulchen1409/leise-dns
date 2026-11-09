@@ -73,7 +73,11 @@ class DnsProxy extends EventEmitter {
       }
       else {
         const server=this.serverFor(domain);
-        const key=this.cache.key(q,server);
+        // Rule changes (generation), pausing and the EDNS/DNSSEC shape of the query all change
+        // what a correct answer looks like, so they are part of the key: a stale entry just ages out.
+        const opt=query.additionals.find(a=>a.type==='OPT');
+        const shape=`${opt?(opt.flags & packet.DNSSEC_OK?'do':'e'):'n'}${query.flags & packet.CHECKING_DISABLED?'c':''}`;
+        const key=`${this.store.generation || 0}|${this.active()?1:0}|${shape}|${this.cache.key(q,server)}`;
         const hit=this.cache.get(key);
         if(hit) result=this.cache.withId(hit,query.id);
         else {
