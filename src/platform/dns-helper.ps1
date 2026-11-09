@@ -9,7 +9,7 @@
     [string]$StorageRoot
 )
 $ErrorActionPreference = 'Stop'
-$HelperVersion = 3
+$HelperVersion = 4
 # Elevated code resolves system locations through Windows APIs, never through
 # environment variables, which a normal user process could redirect.
 $system32 = [Environment]::GetFolderPath('System')
@@ -18,6 +18,9 @@ $storage = if ($StorageRoot) { $StorageRoot } else { Join-Path $programData 'Lei
 $backupFile = Join-Path $storage 'dns-backup.json'
 $recoveryTaskName = 'LeiseDNS-RecoverDNS'
 $trustedOwners = @('S-1-5-32-544', 'S-1-5-18', 'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464')
+# Boot recovery polls until adapters from the backup are enumerated. Tests set these to 0.
+$script:recoveryPollSeconds = 3
+$script:recoveryWaitSeconds = 90
 
 function Get-ActiveAdapters {
     @(Get-NetAdapter | Where-Object { $_.Status -eq 'Up' -and $_.InterfaceDescription -notmatch 'Loopback' })
@@ -77,6 +80,64 @@ function Restore-Dns {
     if ($failures.Count) { throw ($failures -join ' ') }
     Remove-Item -LiteralPath $backupFile -Force
     Unregister-ScheduledTask -TaskName $recoveryTaskName -Confirm:$false -ErrorAction SilentlyContinue
+}
+function Write-RecoveryLog([string]$Message) {
+    try {
+        if (!$storage) { return }
+        $log = Join-Path $storage 'recovery.log'
+        $line = (Get-Date).ToUniversalTime().ToString('o') + ' ' + $Message + "`r`n"
+        [IO.File]::AppendAllText($log, $line)
+        $info = Get-Item -LiteralPath $log
+        if ($info.Length -gt 65536) {
+            $text = [IO.File]::ReadAllText($log)
+            $keep = [Math]::Min(48000, $text.Length)
+            [IO.File]::WriteAllText($log, $text.Substring($text.Length - $keep))
+        }
+    } catch { }
+}
+# Adapters are often missing for a while after a hard reboot (WLAN in particular).
+# Waiting is for enumeration, not for link-up: a disconnected Wi-Fi adapter can
+# still have its DNS restored for the next connection.
+function Wait-RecoveryAdapters {
+    $seconds = 90
+    if ($null -ne $script:recoveryWaitSeconds) { $seconds = [int]$script:recoveryWaitSeconds }
+    $poll = 3
+    if ($null -ne $script:recoveryPollSeconds) { $poll = [int]$script:recoveryPollSeconds }
+    $deadline = (Get-Date).AddSeconds($seconds)
+    $attempt = 0
+    do {
+        $attempt++
+        try {
+            $parsed = Get-Content -LiteralPath $backupFile -Raw | ConvertFrom-Json
+            $needed = @($parsed | ForEach-Object { $_ } | Where-Object { -not $_.Adopted } | ForEach-Object { [string]$_.Guid } | Select-Object -Unique)
+            if ($needed.Count -eq 0) { return $true }
+            $present = @(Get-NetAdapter -IncludeHidden -ErrorAction SilentlyContinue | ForEach-Object { [string]$_.InterfaceGuid })
+            $missing = @($needed | Where-Object { $present -notcontains $_ })
+            if ($missing.Count -eq 0) { return $true }
+        } catch { }
+        if ((Get-Date) -ge $deadline) { return $false }
+        if ($script:recoveryMaxAttempts -and $attempt -ge [int]$script:recoveryMaxAttempts) { return $false }
+        if ($poll -gt 0) { Start-Sleep -Seconds $poll }
+    } while ($true)
+}
+function Invoke-Recovery {
+    Write-RecoveryLog 'Wiederherstellung gestartet.'
+    if (!(Test-Path -LiteralPath $backupFile)) {
+        Unregister-ScheduledTask -TaskName $recoveryTaskName -Confirm:$false -ErrorAction SilentlyContinue
+        Write-RecoveryLog 'Keine Sicherung. Boot-Aufgabe entfernt.'
+        return
+    }
+    if (-not (Wait-RecoveryAdapters)) {
+        Write-RecoveryLog 'Adapter aus der Sicherung sind noch nicht sichtbar. Sicherung bleibt, die Aufgabe versucht es erneut.'
+        throw 'Netzwerkadapter aus der Sicherung sind noch nicht verfügbar.'
+    }
+    try {
+        Restore-Dns
+        Write-RecoveryLog 'DNS wiederhergestellt. Sicherung und Boot-Aufgabe entfernt.'
+    } catch {
+        Write-RecoveryLog ('Wiederherstellung unvollständig: ' + $_.Exception.Message)
+        throw
+    }
 }
 function Save-Backup($Rows) {
     # Temporary file + rename: a crash never leaves a half-written backup behind.
@@ -139,7 +200,7 @@ if ($Inspect) {
     [pscustomobject]@{ adapters = $rows; configured = ($rows.Count -gt 0 -and $local.Count -eq $rows.Count); partial = ($local.Count -gt 0); backup = (Test-Path -LiteralPath $backupFile); splitDns = $split } | ConvertTo-Json -Depth 5 -Compress
     exit
 }
-if ($RecoverOnly) { Restore-Dns; exit }
+if ($RecoverOnly) { Invoke-Recovery; exit }
 
 # ---------------------------------------------------------------------------
 # Helper service. Started either through UAC (-Session) or, after a one-time
@@ -175,11 +236,17 @@ function Install-HelperScript {
     return $target
 }
 function Register-RecoveryTask {
+    # The real helper test uses an isolated folder and must not register a SYSTEM task.
+    if ($StorageRoot) { return }
     $recoveryScript = Install-HelperScript
     $action = New-ScheduledTaskAction -Execute (Join-Path $system32 'WindowsPowerShell\v1.0\powershell.exe') -Argument "-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$recoveryScript`" -RecoverOnly"
-    $trigger = New-ScheduledTaskTrigger -AtStartup
-    $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
-    Register-ScheduledTask -TaskName $recoveryTaskName -Action $action -Trigger $trigger -Settings $settings -User 'SYSTEM' -RunLevel Highest -Force | Out-Null
+    # Startup covers a hard reboot. Logon covers WLAN that only enumerates after sign-in.
+    $startup = New-ScheduledTaskTrigger -AtStartup
+    $logon = New-ScheduledTaskTrigger -AtLogOn
+    try { $startup.Delay = 'PT45S' } catch { }
+    try { $logon.Delay = 'PT20S' } catch { }
+    $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -RestartCount 5 -RestartInterval (New-TimeSpan -Minutes 1) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew
+    Register-ScheduledTask -TaskName $recoveryTaskName -Action $action -Trigger @($startup, $logon) -Settings $settings -User 'SYSTEM' -RunLevel Highest -Force | Out-Null
 }
 # The one-time approval: a task that starts exactly this protected script with
 # fixed arguments and the highest privileges of the user's own account.
@@ -220,9 +287,11 @@ function Enable-LocalDns {
         throw 'Es ist bereits ein lokaler DNS-Server eingetragen, aber keine zugehörige Sicherung vorhanden. Bitte zunächst die ursprünglichen DNS-Einstellungen in Windows wiederherstellen.'
     }
     Protect-Storage
-    Register-RecoveryTask
-    # Persist original state BEFORE touching any adapter.
+    # Persist original state BEFORE the boot task and BEFORE touching any adapter.
+    # A crash must not leave a boot task without a backup, nor DNS pointed at a
+    # service that is not running yet without a backup to undo it.
     Save-Backup $rows
+    Register-RecoveryTask
     foreach ($row in $rows) {
         $address = if ($row.Family -eq 'IPv4') {'127.0.0.1'} else {'::1'}
         Invoke-Netsh @('interface',$row.Family.ToLowerInvariant(),'set','dnsservers',"name=$($row.Index)",'source=static',"address=$address",'validate=no')

@@ -2,7 +2,7 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {EventEmitter}=require('node:events');
 const {spawn}=require('node:child_process');
-const {execFileSync}=require('node:child_process');
+const {execFileSync,spawnSync}=require('node:child_process');
 const fs=require('node:fs');
 const path=require('node:path');
 const os=require('node:os');
@@ -13,6 +13,16 @@ const helperSource=fs.readFileSync(path.join(__dirname,'../src/platform/dns-help
 test('Windows PowerShell 5.1 stellt IPv4 und IPv6 als separate Einträge wieder her',windows,()=>{
   const output=execFileSync(path.join(process.env.SystemRoot,'System32','WindowsPowerShell','v1.0','powershell.exe'),['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(__dirname,'restore-dns.ps1')],{encoding:'utf8',windowsHide:true,timeout:15000});
   assert.match(output,/PASS: IPv4, IPv6/);
+});
+function hostPowershell() {
+  if (process.platform==='win32') return path.join(process.env.SystemRoot,'System32','WindowsPowerShell','v1.0','powershell.exe');
+  const found=spawnSync('pwsh',['-NoProfile','-Command','exit 0'],{stdio:'ignore',timeout:15000});
+  return found.status===0 ? 'pwsh' : null;
+}
+const hostPs=hostPowershell();
+test('Boot-Wiederherstellung mit simulierten Adaptern',{skip:hostPs?false:'Kein PowerShell-Host'},()=>{
+  const output=execFileSync(hostPs,['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(__dirname,'recovery-boot.ps1')],{encoding:'utf8',windowsHide:true,timeout:20000});
+  assert.match(output,/PASS: boot recovery/);
 });
 test('Neue Adapter werden übernommen, ohne VPN-Software zu bekämpfen; VPN-Suffix ergibt Split-DNS',windows,()=>{
   const output=execFileSync(path.join(process.env.SystemRoot,'System32','WindowsPowerShell','v1.0','powershell.exe'),['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(__dirname,'adopt-adapters.ps1')],{encoding:'utf8',windowsHide:true,timeout:30000});
@@ -121,6 +131,23 @@ test('Freigabe zurücknehmen startet den Helfer über die Aufgabe und lässt ihn
       if(c.action==='forget'){clearInterval(timer);fs.writeFileSync(dns.statePath,JSON.stringify({phase:'stopped',session:dns.session,seq:c.seq,version:HELPER_VERSION,task:'removed'}));}},50);
   }});
   try {await h.dns.forget();assert.equal(h.dns.task.state,'missing');assert.equal(h.dns.started,false);} finally {h.cleanup();}
+});
+
+test('Boot-Wiederherstellung: Sicherung vor der Aufgabe, Warten, Protokoll, Start und Anmeldung',()=>{
+  const start=helperSource.indexOf('function Enable-LocalDns');
+  const end=helperSource.indexOf("if ($Channel -notmatch");
+  const body=helperSource.slice(start,end);
+  const save=body.indexOf('Save-Backup $rows');
+  const task=body.indexOf('Register-RecoveryTask');
+  const netsh=body.indexOf('Invoke-Netsh');
+  assert.ok(save!==-1 && save<task && task<netsh,'Sicherung, danach Boot-Aufgabe, danach DNS-Änderung');
+  assert.match(helperSource,/if \(\$RecoverOnly\) \{ Invoke-Recovery; exit \}/);
+  assert.match(helperSource,/-AtStartup/);
+  assert.match(helperSource,/-AtLogOn/);
+  assert.match(helperSource,/recovery\.log/);
+  assert.match(helperSource,/-RestartCount 5/);
+  assert.match(helperSource,/if \(\$StorageRoot\) \{ return \}/);
+  assert.match(helperSource,/PT45S/);
 });
 
 test('Hilfsskript: erhöhter Code nutzt keine vom Benutzer änderbaren Umgebungspfade',()=>{
