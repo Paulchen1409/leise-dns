@@ -10,22 +10,22 @@ const {WindowsDns,launchCommand,HELPER_VERSION}=require('../src/platform/windows
 const windows={skip:process.platform!=='win32'};
 const progress='#< CLIXML\r\n<Objs><Obj S="progress"><MS><PR><AV>Preparing modules for first use.</AV></PR></MS></Obj></Objs>';
 const helperSource=fs.readFileSync(path.join(__dirname,'../src/platform/dns-helper.ps1'),'utf8');
-test('Windows PowerShell 5.1 stellt IPv4 und IPv6 als separate Einträge wieder her',windows,()=>{
-  const output=execFileSync(path.join(process.env.SystemRoot,'System32','WindowsPowerShell','v1.0','powershell.exe'),['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(__dirname,'restore-dns.ps1')],{encoding:'utf8',windowsHide:true,timeout:15000});
-  assert.match(output,/PASS: IPv4, IPv6/);
-});
 function hostPowershell() {
   if (process.platform==='win32') return path.join(process.env.SystemRoot,'System32','WindowsPowerShell','v1.0','powershell.exe');
   const found=spawnSync('pwsh',['-NoProfile','-Command','exit 0'],{stdio:'ignore',timeout:15000});
   return found.status===0 ? 'pwsh' : null;
 }
 const hostPs=hostPowershell();
+test('Windows PowerShell 5.1 stellt IPv4 und IPv6 als separate Einträge wieder her',{skip:hostPs?false:'Kein PowerShell-Host'},()=>{
+  const output=execFileSync(hostPs,['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(__dirname,'restore-dns.ps1')],{encoding:'utf8',windowsHide:true,timeout:15000});
+  assert.match(output,/PASS: IPv4, IPv6/);
+});
 test('Boot-Wiederherstellung mit simulierten Adaptern',{skip:hostPs?false:'Kein PowerShell-Host'},()=>{
   const output=execFileSync(hostPs,['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(__dirname,'recovery-boot.ps1')],{encoding:'utf8',windowsHide:true,timeout:20000});
   assert.match(output,/PASS: boot recovery/);
 });
-test('Neue Adapter werden übernommen, ohne VPN-Software zu bekämpfen; VPN-Suffix ergibt Split-DNS',windows,()=>{
-  const output=execFileSync(path.join(process.env.SystemRoot,'System32','WindowsPowerShell','v1.0','powershell.exe'),['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(__dirname,'adopt-adapters.ps1')],{encoding:'utf8',windowsHide:true,timeout:30000});
+test('Neue Adapter werden übernommen, VPN-DNS begrenzt zurückgesetzt, IPv6-Split-DNS',{skip:hostPs?false:'Kein PowerShell-Host'},()=>{
+  const output=execFileSync(hostPs,['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(__dirname,'adopt-adapters.ps1')],{encoding:'utf8',windowsHide:true,timeout:30000});
   assert.match(output,/PASS: adoption/);
 });
 
