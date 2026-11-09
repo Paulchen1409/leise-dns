@@ -4,7 +4,7 @@ Ein lokaler DNS-Adblocker für **diesen Windows-PC**. Electron, Vanilla JavaScri
 
 ## Direkt starten
 
-`Start-LeiseDNS.cmd` doppelklicken. Alternativ `dist/win-unpacked/Leise DNS.exe` starten; dafür muss der ganze Ordner `win-unpacked` zusammenbleiben. Der aktuelle Installer liegt unter `dist/Leise DNS Setup 0.6.1.exe`.
+`Start-LeiseDNS.cmd` doppelklicken. Alternativ `dist/win-unpacked/Leise DNS.exe` starten; dafür muss der ganze Ordner `win-unpacked` zusammenbleiben. Der aktuelle Installer liegt unter `dist/Leise DNS Setup 0.7.0.exe`. Er ist nicht signiert. Windows SmartScreen warnt deshalb; die Schritte stehen in [docs/smartscreen-und-signierung.md](docs/smartscreen-und-signierung.md).
 
 Version 0.7.0 prüft unter Einstellungen, ob es auf GitHub eine neuere Version gibt, und zeigt die Änderungsnotizen. Installiert wird nichts automatisch. Die Versionszeile in der Seitenleiste kommt aus der App selbst.
 
