@@ -177,7 +177,7 @@ Icons neu erzeugen: `npx electron scripts/make-icon.js`.
 
 **Virenschutz mit TLS-Prüfung:** ESET Security lief beim Test mit. In einer Stichprobe aus 80 gelisteten Domains erhielten 52 beim Verbindungsaufbau `access denied`, bevor die Sperrseite erscheinen konnte; das hängt allein von der Domain ab und passt zu ESETs eigener Sperrliste, ist aber nicht direkt nachgewiesen. Geschützt ist man in beiden Fällen, nur erscheint dann nicht die Hinweisseite von Leise DNS.
 
-Der Installer ist nicht mit einem Herausgeberzertifikat signiert. Dafür wäre ein gekauftes Code-Signing-Zertifikat nötig; bis dahin kann Windows SmartScreen beim Installieren warnen.
+Der Installer ist nicht mit einem Herausgeberzertifikat signiert. Windows SmartScreen warnt deshalb beim Installieren und beim ersten Start. Anwender klicken auf **Weitere Informationen** und dann **Trotzdem ausführen**. Die vollständige Anleitung, die Zertifikatsoptionen (OV, EV, Azure Trusted Signing) und wie die Signierung per Umgebungsvariable in `npm run dist` einrastet, stehen in [docs/smartscreen-und-signierung.md](docs/smartscreen-und-signierung.md). Ohne gesetztes Zertifikat wird der Schritt übersprungen; `npm run sign:check` zeigt die gewählte Art, ohne Geheimnisse auszugeben.
 
 Der Hintergrunddienst ist ein Electron-Prozess mit separatem Wiederherstellungshelfer, kein dauerhaft installierter Windows-Service.
 
