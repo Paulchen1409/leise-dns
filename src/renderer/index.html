@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="styles/materials.css">
   <link rel="stylesheet" href="styles/components.css">
   <link rel="stylesheet" href="styles/app.css">
+  <script defer src="i18n.js"></script>
   <script defer src="icons.js"></script>
   <script defer src="ui.js"></script>
   <script defer src="lens.js"></script>
@@ -25,13 +26,13 @@
     </div>
     <nav class="nav" aria-label="Hauptnavigation">
       <span class="nav-indicator" aria-hidden="true"></span>
-      <a href="#dashboard" data-page="dashboard"><i data-icon="overview"></i><span>Übersicht</span></a>
-      <a href="#queries" data-page="queries"><i data-icon="activity"></i><span>Anfragen</span><span class="nav-live" title="Live-Feed"><span class="dot"></span></span></a>
-      <a href="#filters" data-page="filters"><i data-icon="layers"></i><span>Filterlisten</span></a>
-      <a href="#white" data-page="white"><i data-icon="allow"></i><span>Erlaubte Domains</span></a>
-      <a href="#black" data-page="black"><i data-icon="block"></i><span>Gesperrte Domains</span></a>
+      <a href="#dashboard" data-page="dashboard"><i data-icon="overview"></i><span data-i18n="nav.dashboard">Übersicht</span></a>
+      <a href="#queries" data-page="queries"><i data-icon="activity"></i><span data-i18n="nav.queries">Anfragen</span><span class="nav-live" title="Live-Feed"><span class="dot"></span></span></a>
+      <a href="#filters" data-page="filters"><i data-icon="layers"></i><span data-i18n="nav.filters">Filterlisten</span></a>
+      <a href="#white" data-page="white"><i data-icon="allow"></i><span data-i18n="nav.allow">Erlaubte Domains</span></a>
+      <a href="#black" data-page="black"><i data-icon="block"></i><span data-i18n="nav.block">Gesperrte Domains</span></a>
       <div class="nav-divider" role="separator"></div>
-      <a href="#settings" data-page="settings"><i data-icon="settings"></i><span>Einstellungen</span></a>
+      <a href="#settings" data-page="settings"><i data-icon="settings"></i><span data-i18n="nav.settings">Einstellungen</span></a>
     </nav>
     <div class="sidebar-foot">
       <div class="local-card">
@@ -90,8 +91,8 @@
       <aside class="callout callout-warning bypass-hint" aria-labelledby="bypass-title">
         <i data-icon="alert"></i>
         <div>
-          <span class="callout-title" id="bypass-title">Einige Apps können den Schutz umgehen</span>
-          <p>Chrome, Edge, Firefox, Brave und manche Apps fragen über eigenes verschlüsseltes DNS (DNS-over-HTTPS oder DNS-over-TLS) und sehen den Windows-DNS-Dienst nicht. Leise DNS kann diese Anfragen weder sperren noch zählen. Schalte „Sicheres DNS“ bzw. „DNS über HTTPS“ dort aus, oder stelle es auf den System-DNS-Dienst.</p>
+          <span class="callout-title" id="bypass-title" data-i18n="bypass.title">Einige Apps können den Schutz umgehen</span>
+          <p data-i18n="bypass.text">Chrome, Edge, Firefox, Brave und manche Apps fragen über eigenes verschlüsseltes DNS (DNS-over-HTTPS oder DNS-over-TLS) und sehen den Windows-DNS-Dienst nicht. Leise DNS kann diese Anfragen weder sperren noch zählen. Schalte „Sicheres DNS“ bzw. „DNS über HTTPS“ dort aus, oder stelle es auf den System-DNS-Dienst.</p>
           <ul class="help-list">
             <li><b>Chrome und Brave:</b> Einstellungen → Datenschutz und Sicherheit → Sicherheit → „Sicheres DNS verwenden“ aus. Bei Brave heißt die Seite <b>brave://settings/security</b>.</li>
             <li><b>Edge:</b> Einstellungen → Datenschutz, Suche und Dienste → Sicherheit → „Sicheres DNS verwenden“ aus.</li>
@@ -363,6 +364,14 @@
             <h2 class="panel-title">Darstellung</h2>
             <p class="panel-sub">Gilt nur für dieses Gerät. „Automatisch“ folgt den Windows-Einstellungen.</p>
           </header>
+          <div class="setting-row">
+            <div><h3 id="lang-label" data-i18n="lang.label">Sprache</h3><p>Deutsch ist voreingestellt. English switches the words; the protection itself does not change.</p></div>
+            <div class="segmented" id="language" role="group" aria-labelledby="lang-label">
+              <span class="seg-thumb" aria-hidden="true"></span>
+              <button type="button" data-lang="de" aria-pressed="true">Deutsch</button>
+              <button type="button" data-lang="en" aria-pressed="false">English</button>
+            </div>
+          </div>
           <div class="setting-row">
             <div><h3>Transparenz</h3><p>„Reduziert“ macht Glasflächen deckend und ruhiger.</p></div>
             <div class="segmented" data-pref="transparency" role="group" aria-label="Transparenz">

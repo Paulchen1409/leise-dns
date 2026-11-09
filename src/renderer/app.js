@@ -98,13 +98,14 @@ function syncNav() {
 
 /* ---------- Routing ---------- */
 const pages = {
-  dashboard: ['Übersicht', 'Weniger Werbung. Mehr Ruhe im Netz.'],
-  queries: ['Anfragen', 'Was dein PC anfragt – und was draußen bleibt.'],
-  filters: ['Filterlisten', 'Gute Voreinstellungen. Volle Kontrolle.'],
-  white: ['Erlaubte Domains', 'Diese Domains dürfen immer durch – auch wenn eine Filterliste sie sperrt.'],
-  black: ['Gesperrte Domains', 'Deine eigenen Sperren, zusätzlich zu den Filterlisten.'],
-  settings: ['Einstellungen', 'Verbindung, Anbieter und Darstellung.']
+  dashboard: ['nav.dashboard', 'page.dashboard.sub'],
+  queries: ['nav.queries', 'page.queries.sub'],
+  filters: ['nav.filters', 'page.filters.sub'],
+  white: ['nav.allow', 'page.allow.sub'],
+  black: ['nav.block', 'page.block.sub'],
+  settings: ['nav.settings', 'page.settings.sub']
 };
+const tr = key => window.LeiseI18n ? window.LeiseI18n.t(key) : key;
 function route() {
   const previous = page;
   page = location.hash.slice(1);
@@ -123,9 +124,9 @@ function route() {
     else el.removeAttribute('aria-current');
   });
   document.documentElement.classList.toggle('on-queries', page === 'queries');
-  $('#page-title').textContent = pages[page][0];
-  $('#page-subtitle').textContent = pages[page][1];
-  document.title = page === 'dashboard' ? 'Leise DNS' : `${pages[page][0]} · Leise DNS`;
+  $('#page-title').textContent = tr(pages[page][0]);
+  $('#page-subtitle').textContent = tr(pages[page][1]);
+  document.title = page === 'dashboard' ? 'Leise DNS' : `${tr(pages[page][0])} · Leise DNS`;
   if (previous !== page) window.scrollTo(0, 0);
   syncNav();
   syncAllThumbs();
@@ -650,6 +651,13 @@ document.addEventListener('click', e => {
   if (b.dataset.value && b.closest('[data-pref]')) {
     prefs.set(b.closest('[data-pref]').dataset.pref, b.dataset.value);
   }
+  if (b.dataset.lang) {
+    window.LeiseI18n.setLang(b.dataset.lang);
+    press($('#language'), '[data-lang]', x => x.dataset.lang === window.LeiseI18n.lang());
+    rendered.clear();
+    route();
+    if (snapshot) { renderStatus(snapshot.status); renderFilters(snapshot.lists); renderRules('white', true); renderRules('black', true); }
+  }
   if (b.dataset.listToggle) {
     const l = snapshot.lists.find(x => x.id === b.dataset.listToggle);
     b.setAttribute('aria-checked', String(!l.enabled));
@@ -862,6 +870,8 @@ setInterval(() => { if (snapshot?.status.mode.kind === 'timed') renderStatus(sna
 /* ---------- Start ---------- */
 Icons.hydrate();
 prefs.watch();
+window.LeiseI18n.apply();
+press($('#language'), '[data-lang]', b => b.dataset.lang === window.LeiseI18n.lang());
 $('#today').textContent = new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
 initRules('white');
 initRules('black');

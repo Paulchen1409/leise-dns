@@ -108,7 +108,7 @@ Die Schutzfarbe liegt als Licht *hinter* der Statusfläche und wird vom Glas wei
 
 **Query-Log:** Neue Einträge werden einzeln oben eingefügt. Wer weiter unten liest, bleibt exakt an seiner Position; ein Hinweis „N neue Anfragen“ führt zurück nach oben.
 
-Die Oberfläche lädt keine Schriftarten, Skripte oder Statistikdienste aus dem Internet. Electron verwendet isolierte Renderer ohne Node-Zugriff, Sandbox und eine begrenzte IPC-Schnittstelle; die Content Security Policy blieb unverändert streng (keine Inline-Skripte oder -Styles).
+Die Oberfläche ist auf Deutsch. Unter Einstellungen → Darstellung schaltet „English“ die Navigation, die Seitentitel, den Schutzstatus und den Hinweis zu verschlüsseltem DNS um. Die Wahl gilt nur für dieses Gerät. Deutsch bleibt die Voreinstellung, auch ohne gespeicherte Wahl. Die Oberfläche lädt keine Schriftarten, Skripte oder Statistikdienste aus dem Internet. Electron verwendet isolierte Renderer ohne Node-Zugriff, Sandbox und eine begrenzte IPC-Schnittstelle; die Content Security Policy blieb unverändert streng (keine Inline-Skripte oder -Styles).
 
 ## 3a. Sperrseite für Malware und Phishing
 

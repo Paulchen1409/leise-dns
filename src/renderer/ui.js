@@ -1,11 +1,14 @@
 // Shared by dashboard and tray popup: status wording and display preferences.
 (function (global) {
+  if (typeof module !== 'undefined') { try { require('./i18n'); } catch { /* loaded by the page in the browser */ } }
+  const tr = (key, vars) => global.LeiseI18n ? global.LeiseI18n.t(key, vars) : key;
+  const locale = () => global.LeiseI18n?.lang() === 'en' ? 'en-GB' : 'de-DE';
   const UPSTREAM_NAMES = { cloudflare: 'Cloudflare', google: 'Google', quad9: 'Quad9' };
-  const clock = t => new Date(t).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  const clock = t => new Date(t).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' });
 
   function remaining(until, now) {
     const minutes = Math.max(1, Math.ceil((until - now) / 60000));
-    return minutes === 1 ? 'Noch eine Minute' : `Noch ${minutes} Minuten`;
+    return minutes === 1 ? tr('time.oneMinute') : tr('time.minutes', { minutes });
   }
 
   // Maps the service status to one of the visual states of the protection card.
@@ -15,79 +18,76 @@
     const dns = s.dns || {};
     const provider = UPSTREAM_NAMES[s.upstream] || 'Cloudflare';
     let connection;
-    if (!s.running) connection = { tone: 'danger', text: 'Lokaler DNS-Dienst nicht erreichbar' };
-    else if (dns.configured) connection = { tone: 'success', text: `Windows-DNS verbunden · ${provider} als Anbieter` };
-    else if (dns.partial) connection = { tone: 'warning', text: 'Windows-DNS nur teilweise verbunden' };
-    else connection = { tone: 'neutral', text: 'Lokaler Dienst bereit · Windows-DNS nicht verbunden' };
+    if (!s.running) connection = { tone: 'danger', text: tr('conn.down') };
+    else if (dns.configured) connection = { tone: 'success', text: tr('conn.up', { provider }) };
+    else if (dns.partial) connection = { tone: 'warning', text: tr('conn.partial') };
+    else connection = { tone: 'neutral', text: tr('conn.ready') };
 
     const base = { connection, error: s.error || '', toggle: s.active ? 'on' : 'off', action: null };
 
     if (s.busy) {
       const turningOn = pending ? pending === 'active' : !s.active;
       if (turningOn && !s.helper) {
-        return { ...base, key: 'approval', tone: 'info', icon: 'lock', toggle: 'pending', pill: 'Freigabe nötig',
-          kicker: 'Windows-Freigabe erforderlich', title: 'Bitte Windows-Freigabe bestätigen',
-          description: 'Windows fragt nach Administratorrechten. Nach deiner Bestätigung stellt Leise DNS die DNS-Einstellungen dieses PCs um.'
-            + (s.approval?.remember && s.approval.task !== 'registered' ? ' Die Freigabe wird gespeichert, danach fragt Windows nicht mehr.' : '') };
+        return { ...base, key: 'approval', tone: 'info', icon: 'lock', toggle: 'pending', pill: tr('status.approval.pill'),
+          kicker: tr('status.approval.kicker'), title: tr('status.approval.title'),
+          description: tr('status.approval.desc')
+            + (s.approval?.remember && s.approval.task !== 'registered' ? tr('status.approval.remember') : '') };
       }
       if (turningOn) {
-        return { ...base, key: 'activating', tone: 'info', icon: 'shield', toggle: 'pending', pill: 'Wird eingeschaltet',
-          kicker: 'Einen Moment bitte', title: 'Schutz wird eingeschaltet …',
-          description: 'Windows-DNS wird auf den lokalen Dienst umgestellt. Der Schutz gilt erst nach der Bestätigung als aktiv.' };
+        return { ...base, key: 'activating', tone: 'info', icon: 'shield', toggle: 'pending', pill: tr('status.activating.pill'),
+          kicker: tr('status.activating.kicker'), title: tr('status.activating.title'),
+          description: tr('status.activating.desc') };
       }
-      return { ...base, key: 'deactivating', tone: 'info', icon: 'shield', toggle: 'pending', pill: 'Wird zurückgesetzt',
-        kicker: 'Einen Moment bitte', title: 'DNS wird zurückgesetzt …',
-        description: 'Windows erhält die ursprünglichen DNS-Einstellungen zurück.' };
+      return { ...base, key: 'deactivating', tone: 'info', icon: 'shield', toggle: 'pending', pill: tr('status.deactivating.pill'),
+        kicker: tr('status.deactivating.kicker'), title: tr('status.deactivating.title'),
+        description: tr('status.deactivating.desc') };
     }
 
     if (!s.running) {
-      return { ...base, key: 'unreachable', tone: 'danger', icon: 'alert', pill: 'Dienst gestoppt',
-        kicker: 'Dienst nicht erreichbar', title: 'Der lokale DNS-Dienst läuft nicht',
-        description: 'Leise DNS konnte keinen lokalen DNS-Dienst auf diesem PC starten. Möglicherweise belegt ein anderes Programm Port 53.',
-        action: { label: 'Erneut versuchen', mode: 'active', icon: 'refresh' } };
+      return { ...base, key: 'unreachable', tone: 'danger', icon: 'alert', pill: tr('status.unreachable.pill'),
+        kicker: tr('status.unreachable.kicker'), title: tr('status.unreachable.title'),
+        description: tr('status.unreachable.desc'),
+        action: { label: tr('status.unreachable.action'), mode: 'active', icon: 'refresh' } };
     }
 
     if (s.active) {
-      return { ...base, key: 'active', tone: 'success', icon: 'shield-check', pill: 'Schutz aktiv',
-        kicker: 'Schutz aktiv · nur auf diesem PC', title: 'Dein Schutz ist aktiv',
-        description: 'Werbung und Tracker werden direkt auf diesem PC blockiert, bevor sie geladen werden.' };
+      return { ...base, key: 'active', tone: 'success', icon: 'shield-check', pill: tr('status.active.pill'),
+        kicker: tr('status.active.kicker'), title: tr('status.active.title'),
+        description: tr('status.active.desc') };
     }
 
     if (s.error) {
       const setup = mode === 'active';
-      return { ...base, key: 'failed', tone: 'danger', icon: 'shield-alert', pill: 'Fehler',
-        kicker: setup ? 'Einrichtung fehlgeschlagen' : 'Zurücksetzen fehlgeschlagen',
-        title: setup ? 'Der Schutz konnte nicht eingeschaltet werden' : 'DNS konnte nicht zurückgesetzt werden',
-        description: setup ? 'Deine bisherigen DNS-Einstellungen bleiben erhalten. Die Details stehen unten.'
-          : 'Die Details stehen unten. Versuche es erneut oder prüfe den Status in den Einstellungen.',
-        action: setup ? { label: 'Erneut versuchen', mode: 'active', icon: 'refresh' } : { label: 'Schutz einschalten', mode: 'active', icon: 'power' } };
+      return { ...base, key: 'failed', tone: 'danger', icon: 'shield-alert', pill: tr('status.failed.pill'),
+        kicker: setup ? tr('status.failed.setupKicker') : tr('status.failed.resetKicker'),
+        title: setup ? tr('status.failed.setupTitle') : tr('status.failed.resetTitle'),
+        description: setup ? tr('status.failed.setupDesc') : tr('status.failed.resetDesc'),
+        action: setup ? { label: tr('status.failed.retry'), mode: 'active', icon: 'refresh' } : { label: tr('status.failed.on'), mode: 'active', icon: 'power' } };
     }
 
     if (mode === 'timed') {
-      return { ...base, key: 'paused-timed', tone: 'warning', icon: 'shield-pause', pill: 'Pausiert',
-        kicker: 'Pausiert', title: `Pausiert bis ${clock(s.mode.until)} Uhr`,
-        description: `${remaining(s.mode.until, now)}. Danach schaltet sich der Schutz automatisch wieder ein.`,
-        action: { label: 'Jetzt einschalten', mode: 'active', icon: 'play' } };
+      return { ...base, key: 'paused-timed', tone: 'warning', icon: 'shield-pause', pill: tr('status.timed.pill'),
+        kicker: tr('status.timed.kicker'), title: tr('status.timed.title', { time: clock(s.mode.until) }),
+        description: tr('status.timed.desc', { remaining: remaining(s.mode.until, now) }),
+        action: { label: tr('status.timed.action'), mode: 'active', icon: 'play' } };
     }
     if (mode === 'restart') {
-      return { ...base, key: 'paused-restart', tone: 'warning', icon: 'shield-pause', pill: 'Pausiert',
-        kicker: 'Pausiert bis zum App-Neustart', title: 'Dein Schutz pausiert',
-        description: 'Er bleibt aus, bis Leise DNS neu gestartet wird. Du kannst ihn jederzeit wieder einschalten.',
-        action: { label: 'Jetzt einschalten', mode: 'active', icon: 'play' } };
+      return { ...base, key: 'paused-restart', tone: 'warning', icon: 'shield-pause', pill: tr('status.restart.pill'),
+        kicker: tr('status.restart.kicker'), title: tr('status.restart.title'),
+        description: tr('status.restart.desc'),
+        action: { label: tr('status.timed.action'), mode: 'active', icon: 'play' } };
     }
     if (mode === 'off') {
-      return { ...base, key: 'off', tone: 'neutral', icon: 'shield-off', pill: 'Ausgeschaltet',
-        kicker: 'Dauerhaft ausgeschaltet', title: 'Dein Schutz ist ausgeschaltet',
-        description: 'Windows verwendet wieder die ursprünglichen DNS-Einstellungen, bis du den Schutz einschaltest.',
-        action: { label: 'Schutz einschalten', mode: 'active', icon: 'power' } };
+      return { ...base, key: 'off', tone: 'neutral', icon: 'shield-off', pill: tr('status.off.pill'),
+        kicker: tr('status.off.kicker'), title: tr('status.off.title'),
+        description: tr('status.off.desc'),
+        action: { label: tr('status.off.action'), mode: 'active', icon: 'power' } };
     }
 
-    return { ...base, key: 'setup', tone: 'neutral', icon: 'shield', pill: 'Einrichtung nötig',
-      kicker: 'Einrichtung erforderlich', title: 'Bereit für ein ruhigeres Netz',
-      description: dns.partial
-        ? 'Windows-DNS ist nur teilweise umgestellt. Richte den Schutz erneut ein, damit alle Netzwerkadapter verbunden sind.'
-        : 'Richte den lokalen DNS-Schutz mit einem Klick ein. Windows fragt dabei einmal nach Administratorrechten.',
-      action: { label: 'Mit einem Klick einrichten', mode: 'active', icon: 'arrow' } };
+    return { ...base, key: 'setup', tone: 'neutral', icon: 'shield', pill: tr('status.setup.pill'),
+      kicker: tr('status.setup.kicker'), title: tr('status.setup.title'),
+      description: dns.partial ? tr('status.setup.partial') : tr('status.setup.desc'),
+      action: { label: tr('status.setup.action'), mode: 'active', icon: 'arrow' } };
   }
 
   // Display preferences are per device and purely visual, so localStorage is enough.

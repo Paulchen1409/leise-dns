@@ -1,4 +1,5 @@
 const { describeStatus, prefs } = window.LeiseUI;
+const tr = key => window.LeiseI18n ? window.LeiseI18n.t(key) : key;
 const $ = s => document.querySelector(s);
 let status, pending = null, pauseChoice = null, lastIcon = '';
 
@@ -12,11 +13,11 @@ function render(s) {
   $('#panel').className = `popup-panel tone-${d.tone}`;
   $('#popup-title').textContent = d.key === 'paused-timed' ? d.title.replace(/ Uhr$/, '') : d.pill;
   $('#popup-description').textContent = {
-    active: 'Werbung und Tracker werden blockiert.',
-    setup: 'Im Dashboard mit einem Klick einrichten.',
-    off: 'Über den Schalter wieder einschalten.',
-    'paused-restart': 'Bis zum Neustart der App.',
-    approval: 'Bitte die Windows-Abfrage bestätigen.'
+    active: tr('status.active.desc'),
+    setup: tr('status.setup.desc'),
+    off: tr('status.off.desc'),
+    'paused-restart': tr('status.restart.desc'),
+    approval: tr('status.approval.desc')
   }[d.key] || d.description.split('. ')[0].replace(/\.$/, '') + '.';
   const iconKey = d.icon + d.toggle;
   if (iconKey !== lastIcon) {
