@@ -681,9 +681,10 @@ async function allowOrBlock(b) {
 }
 
 // Generic confirmation dialog (glass); resolves true only on the confirm button.
-function confirmDialog({ title, text, confirm, symbol = 'trash', danger = true, alt = '' }) {
+function confirmDialog({ title, text, confirm, symbol = 'trash', danger = true, alt = '', acknowledge = '' }) {
   return new Promise(resolve => {
     const dialog = $('#confirm-dialog'), ok = $('#confirm-delete'), other = $('#confirm-alt');
+    const ack = $('#confirm-ack'), ackInput = $('#confirm-ack-input');
     $('#confirm-title').textContent = title;
     $('#confirm-text').textContent = text;
     $('#confirm-symbol').innerHTML = icon(symbol);
@@ -691,11 +692,16 @@ function confirmDialog({ title, text, confirm, symbol = 'trash', danger = true, 
     ok.innerHTML = `${icon(symbol)}<span>${esc(confirm)}</span>`;
     other.hidden = !alt;
     other.textContent = alt || '';
+    ack.hidden = !acknowledge;
+    $('#confirm-ack-text').textContent = acknowledge || '';
+    ackInput.checked = false;
+    ok.disabled = !!acknowledge;
+    ackInput.onchange = () => { ok.disabled = acknowledge ? !ackInput.checked : false; };
     let result = false;
-    ok.onclick = () => { result = true; dialog.close(); };
+    ok.onclick = () => { if (acknowledge && !ackInput.checked) return; result = true; dialog.close(); };
     other.onclick = () => { result = 'alt'; dialog.close(); };
     $('#confirm-cancel').onclick = () => dialog.close();
-    dialog.onclose = () => { other.hidden = true; resolve(result); };
+    dialog.onclose = () => { other.hidden = true; ack.hidden = true; ok.disabled = false; resolve(result); };
     dialog.showModal();
   });
 }
@@ -719,6 +725,17 @@ function renderBlockPage(s) {
     : ['neutral', 'Aus. Bei https-Seiten zeigt der Browser nur eine Fehlermeldung.'];
   $('#blockpage-https-status').className = `approval-status status-text tone-${htone}`;
   $('#blockpage-https-status-text').textContent = htext;
+  const box = $('#blockpage-conflict');
+  const conflict = b.conflict || h.conflict;
+  if (box) {
+    box.hidden = !conflict;
+    if (conflict) {
+      const title = $('#blockpage-conflict-title');
+      const steps = $('#blockpage-conflict-steps');
+      if (title) title.textContent = conflict.summary;
+      if (steps) steps.innerHTML = (conflict.steps || []).map(step => `<li>${esc(step)}</li>`).join('');
+    }
+  }
   document.querySelectorAll('[data-preview]').forEach(x => { x.disabled = !b.running; });
 }
 
@@ -727,6 +744,7 @@ $('#blockpage-https-toggle').addEventListener('click', async e => {
   const enable = t.getAttribute('aria-checked') !== 'true';
   const ok = enable
     ? await confirmDialog({ title: 'Stammzertifikat installieren?', symbol: 'lock', danger: false, confirm: 'Weiter zu Windows',
+        acknowledge: 'Ich verstehe, dass der Schlüssel auf diesem PC liegt und nur für mein Windows-Konto installiert wird.',
         text: 'Leise DNS erstellt ein eigenes Stammzertifikat, damit Browser die Hinweisseite auch bei https-Seiten anzeigen. Windows fragt gleich, ob du es installieren möchtest – bestätige mit „Ja“. Wichtig: Wer den Schlüssel von deinem PC stehlen könnte, könnte damit Webseiten fälschen. Er liegt deshalb verschlüsselt und nur für dein Konto lesbar auf diesem PC. Ausschalten entfernt das Zertifikat wieder.' })
     : await confirmDialog({ title: 'Zertifikat entfernen?', confirm: 'Entfernen',
         text: 'Windows fragt gleich, ob das Leise-DNS-Zertifikat gelöscht werden soll – bestätige mit „Ja“. Danach zeigen gesperrte https-Seiten wieder nur eine Fehlermeldung.' });

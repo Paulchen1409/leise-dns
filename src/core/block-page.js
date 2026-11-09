@@ -14,6 +14,22 @@ const {LocalCA}=require('./local-ca');
 const run=promisify(execFile);
 const DEFAULT_ADDRESS='127.53.0.1';
 
+// What to do when 80 or 443 is already taken. The summary is the status line;
+// the steps are shown as a list in the settings.
+function portConflict(port, code) {
+  const kind = Number(port) === 443 ? 'https' : 'http';
+  const shown = code ? ` (${code})` : '';
+  return {
+    port: Number(port), code: code || '',
+    summary: `Port ${port} ist belegt${shown}. Die ${kind}-Sperrseite läuft nicht. Gefährliche Seiten werden trotzdem blockiert, nur ohne diese Hinweisseite.`,
+    steps: [
+      `Finde das Programm: Windows-Taste drücken, „resmon“ eingeben, oder eine Eingabeaufforderung als Administrator öffnen und netstat -abn ausführen. Suche nach :${port}.`,
+      'Häufig sind das IIS (World Wide Web Publishing), Skype, ein lokaler Webserver oder eine andere Sicherheitssoftware. Beende das Programm oder stell seinen Port um.',
+      'Starte Leise DNS danach neu. Port 80 und Port 443 sind unabhängig: fällt nur einer aus, kann der andere die Hinweisseite weiter anzeigen.'
+    ]
+  };
+}
+
 // Current user's "Trusted Root" store. Adding and removing shows a Windows confirmation.
 function windowsCertStore() {
   const certutil=path.join(process.env.SystemRoot || 'C:\\Windows','System32','certutil.exe');
@@ -78,12 +94,12 @@ class BlockPage {
     Object.assign(this,{store,address,ports,protect,unprotect,certStore});
     this.file=dataPath?path.join(dataPath,'blockpage-ca.json'):null;
     this.ca=null;this.httpServer=null;this.tlsServer=null;this.contexts=new Map();
-    this.error='';this.httpsError='';this.installed=false;this.busy=false;
+    this.error='';this.httpsError='';this.installed=false;this.busy=false;this.conflict=null;this.httpsConflict=null;
   }
   available() {return this.httpServer?this.address:null;}
   status() {
-    return {running:!!this.httpServer,address:this.address,error:this.error,
-      https:{enabled:!!this.tlsServer,installed:this.installed,busy:this.busy,error:this.httpsError,expires:this.ca?.expires || null}};
+    return {running:!!this.httpServer,address:this.address,error:this.error,conflict:this.conflict,
+      https:{enabled:!!this.tlsServer,installed:this.installed,busy:this.busy,error:this.httpsError,expires:this.ca?.expires || null,conflict:this.httpsConflict}};
   }
   handle(req,res) {
     const url=new URL(req.url || '/','http://leise.invalid');
@@ -109,8 +125,12 @@ class BlockPage {
     try {
       const server=this.harden(http.createServer((req,res)=>this.handle(req,res)));
       await this.listen(server,this.ports.http);
-      server.on('error',()=>{});this.httpServer=server;this.error='';
-    } catch(e) {this.error=`Die Sperrseite konnte nicht starten (${e.code || e.message}). Gefährliche Seiten werden trotzdem blockiert, nur ohne Hinweisseite.`;}
+      server.on('error',()=>{});this.httpServer=server;this.error='';this.conflict=null;
+    } catch(e) {
+      const taken=e.code==='EADDRINUSE'||e.code==='EACCES';
+      this.conflict=taken?portConflict(this.ports.http,e.code):null;
+      this.error=this.conflict?this.conflict.summary:`Die Sperrseite konnte nicht starten (${e.code || e.message}). Gefährliche Seiten werden trotzdem blockiert, nur ohne Hinweisseite.`;
+    }
     await this.loadCa().catch(e=>{this.httpsError=e.message;});
   }
   async loadCa() {
@@ -139,8 +159,12 @@ class BlockPage {
       try{cb(null,this.context(name));}catch(e){cb(e);}
     }},(req,res)=>this.handle(req,res)));
     server.on('tlsClientError',()=>{});
-    try{await this.listen(server,this.ports.https);server.on('error',()=>{});this.tlsServer=server;this.httpsError='';}
-    catch(e){this.httpsError=`Port ${this.ports.https} ist belegt (${e.code || e.message}).`;}
+    try{await this.listen(server,this.ports.https);server.on('error',()=>{});this.tlsServer=server;this.httpsError='';this.httpsConflict=null;}
+    catch(e){
+      const taken=e.code==='EADDRINUSE'||e.code==='EACCES';
+      this.httpsConflict=taken?portConflict(this.ports.https,e.code):null;
+      this.httpsError=this.httpsConflict?this.httpsConflict.summary:`Port ${this.ports.https} ist belegt (${e.code || e.message}).`;
+    }
   }
   async enableHttps() {
     if(this.busy)throw new Error('Bitte kurz warten.');
@@ -179,4 +203,4 @@ class BlockPage {
     for(const key of ['httpServer','tlsServer']) {const s=this[key];this[key]=null;if(s){s.closeAllConnections?.();await new Promise(r=>s.close(()=>r()));}}
   }
 }
-module.exports={BlockPage,renderPage,DEFAULT_ADDRESS};
+module.exports={BlockPage,renderPage,DEFAULT_ADDRESS,portConflict};

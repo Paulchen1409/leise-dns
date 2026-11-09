@@ -291,6 +291,20 @@
             <p class="panel-sub">Ruft dein Browser eine bekannte Malware- oder Phishing-Seite auf, zeigt Leise DNS stattdessen eine Hinweisseite mit dem Grund. Werbung und Tracker werden weiterhin still blockiert.</p>
           </header>
           <p class="approval-status status-text tone-neutral" id="blockpage-status"><span class="dot"></span><span id="blockpage-status-text">Wird geprüft …</span></p>
+          <div id="blockpage-conflict" class="callout callout-warning" hidden>
+            <i data-icon="alert"></i>
+            <div>
+              <span class="callout-title" id="blockpage-conflict-title">Port belegt</span>
+              <ol id="blockpage-conflict-steps" class="help-list"></ol>
+            </div>
+          </div>
+          <div class="callout callout-warning" id="https-risk">
+            <i data-icon="shield-alert"></i>
+            <div>
+              <span class="callout-title">Risiko der https-Sperrseite</span>
+              <p>Wer den Schlüssel dieser Zertifizierungsstelle stehlen kann – Schadsoftware, die bereits unter deinem Konto läuft –, könnte für dieses Windows-Konto beliebige https-Seiten fälschen. Ohne die Option gibt es dieses Risiko nicht: gesperrte Seiten bleiben gesperrt, der Browser zeigt dann nur seine eigene Fehlermeldung. Chrome und Edge vertrauen dem Windows-Zertifikatspeicher; Firefox nur, wenn er ihn übernimmt.</p>
+            </div>
+          </div>
           <div class="setting-row">
             <div>
               <h3 id="blockpage-https-label">Auch verschlüsselte Seiten (https)</h3>
@@ -396,6 +410,10 @@
     <div class="dialog-symbol" id="confirm-symbol" aria-hidden="true"><i data-icon="trash"></i></div>
     <h2 id="confirm-title">Filterliste löschen?</h2>
     <p id="confirm-text"></p>
+    <label class="ack" id="confirm-ack" hidden>
+      <input type="checkbox" id="confirm-ack-input">
+      <span id="confirm-ack-text"></span>
+    </label>
     <div class="dialog-actions">
       <button id="confirm-cancel" class="btn" autofocus>Abbrechen</button>
       <button id="confirm-alt" class="btn" hidden>Zusammenführen</button>

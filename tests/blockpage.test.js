@@ -5,7 +5,7 @@ const http=require('node:http');const https=require('node:https');const crypto=r
 const packet=require('dns-packet');
 const {Store}=require('../src/core/store');
 const {DnsProxy}=require('../src/core/dns-proxy');
-const {BlockPage}=require('../src/core/block-page');
+const {BlockPage,portConflict}=require('../src/core/block-page');
 const {LocalCA}=require('../src/core/local-ca');
 
 function threatStore() {
@@ -105,6 +105,26 @@ test('Abgebrochene Windows-Abfrage installiert nichts und speichert keinen SchlÃ
     assert.equal(fs.existsSync(path.join(dir,'blockpage-ca.json')),false);assert.equal(page.tlsServer,null);
     assert.equal(fs.readdirSync(dir).length,0);
   } finally {await page.stop();store.close();fs.rmSync(dir,{recursive:true,force:true});}
+});
+
+test('Belegter Port nennt das Programm und was zu tun ist',async()=>{
+  const info=portConflict(443,'EADDRINUSE');
+  assert.match(info.summary,/Port 443 ist belegt/);
+  assert.match(info.steps.join('\n'),/netstat -abn/);
+  assert.match(info.steps.join('\n'),/unabhÃ¤ngig/);
+  const blocker=http.createServer();
+  await new Promise(r=>blocker.listen(0,'127.0.0.1',r));
+  const port=blocker.address().port;
+  const store=new Store(':memory:');
+  const page=new BlockPage({store,address:'127.0.0.1',ports:{http:port,https:0},certStore:{async has(){return false;},async add(){},async remove(){}}});
+  try {
+    await page.start();
+    const status=page.status();
+    assert.equal(status.running,false);
+    assert.equal(status.conflict.code,'EADDRINUSE');
+    assert.equal(status.conflict.steps.length,3);
+    assert.match(status.error,/trotzdem blockiert/);
+  } finally { await page.stop(); await new Promise(r=>blocker.close(r)); store.close(); }
 });
 
 test('Lokale Zertifizierungsstelle: CA ohne Unter-CAs, kurzlebige Zertifikate je Domain',()=>{
