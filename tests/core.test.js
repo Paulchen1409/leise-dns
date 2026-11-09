@@ -2,7 +2,7 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');const os=require('node:os');const path=require('node:path');const dgram=require('node:dgram');const net=require('node:net');
 const packet=require('dns-packet');
-const {Store}=require('../src/core/store');const {normalizeDomain,parseList}=require('../src/core/domains');const {Filters}=require('../src/core/filters');const {DnsProxy,forward}=require('../src/core/dns-proxy');const {Service}=require('../src/core/service');
+const {Store}=require('../src/core/store');const {normalizeDomain,parseList}=require('../src/core/domains');const {Filters}=require('../src/core/filters');const {DnsProxy,forward,DnsCache}=require('../src/core/dns-proxy');const {Service}=require('../src/core/service');
 
 test('Domain-Eingaben werden normalisiert; URLs und ungültige Namen abgelehnt',()=>{
   assert.equal(normalizeDomain(' BÜCHER.de. '),'xn--bcher-kva.de');
@@ -135,6 +135,56 @@ test('Listen-Update schreibt nur Änderungen und liefert dasselbe Ergebnis wie e
     await pending;
     assert.equal(store.filtered.has('neuer.example.com'),true);assert.equal(store.filtered.has('x5.example.com'),false);
   }finally{store.close();}
+});
+test('DNS-Cache: TTL-Obergrenze, Größe, keine Sperren, getrennte Server',async()=>{
+  const cache=new DnsCache({maxTtl:60,maxEntries:8});
+  cache.now=()=>1000;
+  cache.set('a',Buffer.from([0x00,0x11,0,0]),300);
+  cache.set('long',Buffer.from([0,9,0,0]),300);
+  cache.set('b',Buffer.from([0x00,0x22,0,0]),10);
+  assert.equal(cache.get('a').readUInt16BE(0),0x11);
+  cache.now=()=>1000+59000;
+  assert.ok(cache.get('long'));
+  cache.now=()=>1000+60000;
+  assert.equal(cache.get('long'),null);
+  cache.now=()=>1000+10000;
+  assert.equal(cache.get('b'),null);
+  cache.now=()=>1000;
+  const small=new DnsCache({maxTtl:60,maxEntries:2});
+  small.now=()=>1000;
+  small.set('a',Buffer.from([0,1]),30);small.set('b',Buffer.from([0,2]),30);small.set('c',Buffer.from([0,3]),30);
+  assert.equal(small.size,2);assert.equal(small.get('a'),null);assert.ok(small.get('c'));
+  const upstream=await mockUpstream();const store=new Store(':memory:');
+  const proxy=new DnsProxy({store,port:0,hosts:['127.0.0.1'],upstreamPort:upstream.port,timeout:100,cache:{maxTtl:60,maxEntries:8}});
+  proxy.upstream=()=>'127.0.0.1';
+  const started=1_700_000_000_000;
+  proxy.cache.now=()=>started;
+  const ask=(name,id=1,type='A')=>proxy.handle(packet.encode({type:'query',id,flags:packet.RECURSION_DESIRED,questions:[{name,type}]}));
+  try {
+    assert.equal(packet.decode(await ask('allowed.example.com',7)).answers[0].data,'203.0.113.10');
+    assert.equal(packet.decode(await ask('allowed.example.com',8)).id,8);
+    assert.equal(upstream.calls,1);assert.equal(proxy.cache.hits,1);
+    const before=upstream.calls;
+    await ask('allowed.example.com',9,'AAAA');
+    assert.equal(upstream.calls,before+1);
+    store.addRule('black','ads.example.com');
+    assert.equal(packet.decode(await ask('ads.example.com',4)).rcode,'NXDOMAIN');
+    assert.equal(packet.decode(await ask('ads.example.com',5)).rcode,'NXDOMAIN');
+    assert.equal(upstream.calls,before+1);
+    const errors=upstream.calls;
+    assert.equal(packet.decode(await ask('timeout.example.com')).rcode,'SERVFAIL');
+    assert.equal(packet.decode(await ask('timeout.example.com')).rcode,'SERVFAIL');
+    assert.equal(upstream.calls,errors+2);
+    proxy.cache.now=()=>started+31000;
+    await ask('allowed.example.com',10);
+    assert.equal(upstream.calls,errors+3);
+    proxy.cache.now=()=>started;
+    await ask('vpn.example.com',11);
+    const cached=upstream.calls;
+    proxy.splitDns=()=>[{suffix:'example.com',servers:['192.0.2.55']}];
+    assert.equal(packet.decode(await ask('vpn.example.com',12)).rcode,'SERVFAIL');
+    assert.equal(upstream.calls,cached);
+  } finally { await upstream.close(); store.close(); }
 });
 test('Split-DNS: Namen unter dem VPN-Suffix gehen an den VPN-Server, Sperren gelten weiter',async()=>{
   const upstream=await mockUpstream();const store=new Store(':memory:');store.addRule('black','ads.corp.example');

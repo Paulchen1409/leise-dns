@@ -4,6 +4,7 @@ const { randomInt } = require('node:crypto');
 const { EventEmitter } = require('node:events');
 const packet = require('dns-packet');
 const { matches } = require('./domains');
+const { DnsCache } = require('./dns-cache');
 const UPSTREAMS = { cloudflare: '1.1.1.1', google: '8.8.8.8', quad9: '9.9.9.9' };
 
 function reply(query, rcode) {
@@ -43,8 +44,9 @@ function forward(raw, server, tcp = false, port = 53, timeout = 4000) {
 }
 
 class DnsProxy extends EventEmitter {
-  constructor({store,port=53,hosts=['127.0.0.1','::1'],upstreamPort=53,timeout=4000}) {
+  constructor({store,port=53,hosts=['127.0.0.1','::1'],upstreamPort=53,timeout=4000,cache}={}) {
     super(); Object.assign(this,{store,port,hosts,upstreamPort,timeout}); this.servers=[];this.connections=new Set();this.inflight=0;this.running=false;
+    this.cache=new DnsCache(cache);
     this.active=()=>true;this.blockPage=()=>null;this.upstream=()=>UPSTREAMS[this.store.get('upstream','cloudflare')] || UPSTREAMS.cloudflare;
     this.splitDns=()=>[];
   }
@@ -71,12 +73,18 @@ class DnsProxy extends EventEmitter {
       }
       else {
         const server=this.serverFor(domain);
-        result=await forward(raw,server,tcp,this.upstreamPort,this.timeout);
-        let response=packet.decode(result);
-        if(response.flag_tc && !tcp) { result=await forward(raw,server,true,this.upstreamPort,this.timeout);response=packet.decode(result); }
-        if(this.active() && !matches(this.store.white,domain) && response.answers.some(a=>a.type==='CNAME' && this.store.reason(a.data))) {
-          status='blocked';reason='Weiterleitung auf gesperrte Domain';result=reply(query,3);
-        } else if (['SERVFAIL','REFUSED'].includes(response.rcode)) {status='error';reason='DNS-Anbieter: '+response.rcode;}
+        const key=this.cache.key(q,server);
+        const hit=this.cache.get(key);
+        if(hit) result=this.cache.withId(hit,query.id);
+        else {
+          result=await forward(raw,server,tcp,this.upstreamPort,this.timeout);
+          let response=packet.decode(result);
+          if(response.flag_tc && !tcp) { result=await forward(raw,server,true,this.upstreamPort,this.timeout);response=packet.decode(result); }
+          if(this.active() && !matches(this.store.white,domain) && response.answers.some(a=>a.type==='CNAME' && this.store.reason(a.data))) {
+            status='blocked';reason='Weiterleitung auf gesperrte Domain';result=reply(query,3);
+          } else if (['SERVFAIL','REFUSED'].includes(response.rcode)) {status='error';reason='DNS-Anbieter: '+response.rcode;}
+          else if(!response.flag_tc && status==='allowed') this.cache.set(key,result,DnsCache.ttlOf(response));
+        }
         // A large TCP fallback must not be sent as an oversized UDP response.
         const size=Math.min(4096,Math.max(512,query.additionals.find(a=>a.type==='OPT')?.udpPayloadSize || 512));
         if(!tcp && result.length>size) result=packet.encode({type:'response',id:query.id,flags:packet.TRUNCATED_RESPONSE | packet.RECURSION_AVAILABLE | (query.flags & packet.RECURSION_DESIRED),questions:query.questions});
@@ -126,4 +134,4 @@ class DnsProxy extends EventEmitter {
     if (packet.decode(data).rcode !== 'NOERROR') throw new Error('Der Verbindungstest ist fehlgeschlagen. Bitte einen anderen DNS-Anbieter wählen.');
   }
 }
-module.exports={DnsProxy,UPSTREAMS,forward};
+module.exports={DnsProxy,UPSTREAMS,forward,DnsCache};

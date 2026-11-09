@@ -196,6 +196,8 @@ function renderStatus(s) {
   $$('[data-mode]').forEach(b => { b.disabled = !!s.busy; });
 
   press($('#upstream'), '[data-upstream]', b => b.dataset.upstream === s.upstream);
+  const cacheNote = $('#cache-note');
+  if (cacheNote && s.cache) cacheNote.textContent = `Zwischenspeicher: ${number(s.cache.entries)} von ${number(s.cache.maxEntries)} Antworten, höchstens ${s.cache.maxTtl} Sekunden, ${number(s.cache.hits)} Treffer. Kürzere TTLs bleiben kürzer.`;
   $('#autostart-toggle').setAttribute('aria-checked', String(!!s.autostart));
   $('#autoupdate-toggle').setAttribute('aria-checked', String(!!s.autoUpdate));
   renderApproval(s);

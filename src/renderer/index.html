@@ -308,6 +308,7 @@
             <h2 class="panel-title">DNS-Anbieter</h2>
             <p class="panel-sub">Erlaubte Anfragen werden an diesen Anbieter weitergeleitet – über normales DNS per UDP/TCP.</p>
           </header>
+          <p class="help" id="cache-note">Erlaubte Antworten bleiben höchstens 60 Sekunden im Speicher. Kürzere TTLs bleiben kürzer. Sperren und Fehler werden nicht gespeichert.</p>
           <div class="choice-list" id="upstream" role="group" aria-label="DNS-Anbieter auswählen">
             <button data-upstream="cloudflare" aria-pressed="false"><i data-icon="globe"></i><span class="choice-text"><span class="choice-title">Cloudflare</span><span class="choice-sub">1.1.1.1</span></span><i data-icon="check" class="choice-check"></i></button>
             <button data-upstream="google" aria-pressed="false"><i data-icon="globe"></i><span class="choice-text"><span class="choice-title">Google</span><span class="choice-sub">8.8.8.8</span></span><i data-icon="check" class="choice-check"></i></button>

@@ -74,7 +74,7 @@ Reihenfolge pro Anfrage:
 4. Erlaubte Anfragen an Cloudflare, Google oder Quad9 weiterleiten. Transaktions-ID, Absender und ursprüngliche Frage werden geprüft. Abgeschnittene UDP-Antworten werden über TCP erneut angefordert.
 5. CNAME-Ziele ebenfalls auf Sperren prüfen; eine explizit erlaubte Ursprungsdomain bleibt erlaubt. Zeitüberschreitungen liefern `SERVFAIL` und werden als Fehler protokolliert.
 
-Verbindungsgrenzen, Zeitlimits und Größenlimits begrenzen offene DNS-Verbindungen. DNSSEC-Daten erlaubter Antworten werden durchgereicht; die App ist kein eigener DNSSEC-Validator und betreibt keinen zusätzlichen DNS-Cache.
+Verbindungsgrenzen, Zeitlimits und Größenlimits begrenzen offene DNS-Verbindungen. DNSSEC-Daten erlaubter Antworten werden durchgereicht; die App ist kein eigener DNSSEC-Validator. Erlaubte Antworten liegen zusätzlich in einem kurzen Speicher: die TTL des Anbieters, gedeckelt auf 60 Sekunden (im Bereich 30–120 Sekunden), höchstens 2048 Einträge, getrennt nach Anbieter bzw. VPN-Server und Record-Typ. Sperren, Fehler und abgeschnittene Antworten werden nicht gespeichert. Unter Einstellungen steht, wie voll der Speicher ist.
 
 **Windows-Anbindung:** Der Hilfsprozess läuft nur für die Lebensdauer der App mit Administratorrechten. Vor jeder Aktivierung werden aktive Netzwerkadapter mit GUID, Adressfamilie, automatischem/statischem DNS und Serverreihenfolge gesichert. Beide Adressfamilien werden umgestellt. Beim Ausschalten werden die Originalwerte zurückgeschrieben.
 

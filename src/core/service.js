@@ -28,6 +28,7 @@ class Service extends EventEmitter {
       active:this.proxy.running && this.dns.last.configured && this.dns.started!==false && this.mode.kind==='active',
       domainCount:this.store.filtered.size,autoUpdate:this.store.get('autoUpdate',true),
       blockPage:this.blockPage?.status() || null,
+      cache:{entries:this.proxy.cache.size,hits:this.proxy.cache.hits,misses:this.proxy.cache.misses,maxTtl:this.proxy.cache.maxTtl,maxEntries:this.proxy.cache.maxEntries},
       approval:{remember:this.store.get('rememberApproval',true),task:this.dns.task?.state || 'unknown',error:this.dns.task?.error || ''},upstream:this.store.get('upstream','cloudflare'),port:this.proxy.port};
   }
   async start({download=true}={}) {
