@@ -454,6 +454,11 @@ button { cursor: pointer; }
 .ack { display: flex; gap: 10px; align-items: flex-start; margin-top: 14px; font-size: var(--fs-body); line-height: 1.45; color: var(--text-1); }
 .ack input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--amber-deep); }
 .help-list { margin: 8px 0 0; padding-left: 18px; }
+/* Dismissable callout: text takes the room, the close button sits top-right. */
+.bypass-hint > div { flex: 1; min-width: 0; }
+.callout-close { flex: none; margin: -6px -8px 0 auto; color: var(--text-2); }
+.callout-close:hover { color: var(--text-1); }
+#bypass-show { margin-left: 6px; vertical-align: baseline; }
 .help-list li { margin: 4px 0; }
 .help-list b { color: var(--text-1); }
 

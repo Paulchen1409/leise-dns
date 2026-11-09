@@ -51,6 +51,9 @@ class LocalCA {
     const der=certificate({subject:name(CA_NAME),issuer:name(CA_NAME),publicKey,signingKey:privateKey,days:730,extensions:[
       ext('2.5.29.19',true,seq(bool(true),int(0))),            // CA, no sub-CAs
       ext('2.5.29.15',true,tlv(0x03,Buffer.from([1,0x06]))),    // keyCertSign, cRLSign
+      // Windows chains EKUs: a leaked key can then only issue web server certificates,
+      // never code-signing or e-mail certificates.
+      ext('2.5.29.37',false,seq(oid('1.3.6.1.5.5.7.3.1'))),     // serverAuth only
       ext('2.5.29.14',false,octet(id))
     ]});
     return new LocalCA(der,privateKey);

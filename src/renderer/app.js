@@ -825,6 +825,23 @@ $('#import-rules')?.addEventListener('click', async () => {
   } catch (err) { toast(err.message, true); }
 });
 $('#quit-app').addEventListener('click', () => api.call('app:quit'));
+// The encrypted-DNS hint can be closed; "Gut zu wissen" in the settings brings it back.
+const BYPASS_KEY = 'leise.bypassHintHidden';
+function showBypassHint(visible) {
+  $('.bypass-hint').hidden = !visible;
+  $('#bypass-show').hidden = visible;
+}
+$('#bypass-close').addEventListener('click', () => {
+  try { localStorage.setItem(BYPASS_KEY, '1'); } catch { /* still hidden for this session */ }
+  showBypassHint(false);
+  toast('Hinweis ausgeblendet. Unter Einstellungen → Gut zu wissen lässt er sich wieder anzeigen.');
+});
+$('#bypass-show').addEventListener('click', () => {
+  try { localStorage.removeItem(BYPASS_KEY); } catch { /* ignore */ }
+  showBypassHint(true);
+  toast('Hinweis wird auf der Übersicht wieder angezeigt.');
+});
+try { showBypassHint(localStorage.getItem(BYPASS_KEY) !== '1'); } catch { showBypassHint(true); }
 $('#query-search').addEventListener('input', () => {
   clearTimeout(queryTimer);
   queryTimer = setTimeout(() => loadQueries({ reset: true }).catch(e => toast(e.message, true)), 150);

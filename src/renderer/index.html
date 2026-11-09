@@ -106,6 +106,7 @@
             <button type="button" class="btn btn-sm" data-help="windows">Anleitung Windows</button>
           </div>
         </div>
+        <button type="button" id="bypass-close" class="btn btn-sm btn-quiet btn-icon-sm callout-close" aria-label="Hinweis schließen" title="Hinweis schließen" data-i18n-aria="bypass.close"><i data-icon="close"></i></button>
       </aside>
 
       <div class="pause-row">
@@ -402,7 +403,7 @@
           <header class="form-head"><h2 class="panel-title">Gut zu wissen</h2></header>
           <ul class="notes">
             <li>Das Schließen des Fensters lässt Leise DNS im Infobereich weiterlaufen. Über das Tray-Symbol erreichst du Schalter und Dashboard.</li>
-            <li>Apps mit eigenem verschlüsseltem DNS können den lokalen Filter umgehen. Die Schritte stehen auf der Übersicht unter „Einige Apps können den Schutz umgehen“. Werbung von derselben Domain wie der Inhalt lässt sich per DNS nicht getrennt sperren.</li>
+            <li>Apps mit eigenem verschlüsseltem DNS können den lokalen Filter umgehen. Die Schritte stehen auf der Übersicht unter „Einige Apps können den Schutz umgehen“. Werbung von derselben Domain wie der Inhalt lässt sich per DNS nicht getrennt sperren. <button type="button" id="bypass-show" class="btn btn-sm" hidden>Hinweis wieder anzeigen</button></li>
             <li>Neue Adapter wie WLAN oder VPN werden übernommen, solange der Schutz an ist. Docker, WSL und der mobile Hotspot bleiben unangetastet. Leise DNS ändert keine Routereinstellungen.</li>
           </ul>
           <div class="button-row">

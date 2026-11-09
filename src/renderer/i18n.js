@@ -71,6 +71,7 @@
     'status.setup.desc': 'Richte den lokalen DNS-Schutz mit einem Klick ein. Windows fragt dabei einmal nach Administratorrechten.',
     'status.setup.partial': 'Windows-DNS ist nur teilweise umgestellt. Richte den Schutz erneut ein, damit alle Netzwerkadapter verbunden sind.',
     'status.setup.action': 'Mit einem Klick einrichten',
+    'bypass.close': 'Hinweis schließen',
     'bypass.title': 'Einige Apps können den Schutz umgehen',
     'bypass.text': 'Chrome, Edge, Firefox, Brave und manche Apps fragen über eigenes verschlüsseltes DNS (DNS-over-HTTPS oder DNS-over-TLS) und sehen den Windows-DNS-Dienst nicht. Leise DNS kann diese Anfragen weder sperren noch zählen. Schalte „Sicheres DNS“ bzw. „DNS über HTTPS“ dort aus, oder stelle es auf den System-DNS-Dienst.'
   };
@@ -145,6 +146,7 @@
     'status.setup.desc': 'Set up local DNS protection in one step. Windows asks for administrator rights once.',
     'status.setup.partial': 'Windows DNS is only partly switched. Set protection up again so every adapter is connected.',
     'status.setup.action': 'Set up in one step',
+    'bypass.close': 'Close hint',
     'bypass.title': 'Some apps can bypass the protection',
     'bypass.text': 'Chrome, Edge, Firefox, Brave and some apps use their own encrypted DNS (DNS over HTTPS or DNS over TLS) and never ask Windows. Leise DNS cannot block or count those queries. Turn off “Secure DNS” or “DNS over HTTPS” in those apps, or set it to the system DNS service.'
   };

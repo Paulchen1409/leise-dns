@@ -1,5 +1,8 @@
+// DNS names can carry any bytes. A cell starting with = + - @ (or tab/CR) would run
+// as a formula in Excel, so it gets a leading apostrophe.
 function csvCell(value) {
-  const text = String(value ?? '');
+  let text = String(value ?? '');
+  if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
   return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 function queriesToCsv(rows) {

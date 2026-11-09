@@ -22,3 +22,9 @@ test('Anfragen-Export als CSV und JSON, mit Maskierung', () => {
     assert.match(json[0].time, /T/);
   } finally { store.close(); }
 });
+
+test('CSV-Export entschärft Tabellenformeln in Domains', () => {
+  const csv = queriesToCsv([{ time: 0, domain: '=hyperlink("http://x")', type: 'A', status: 'allowed', reason: '+1', ms: 1 }]);
+  assert.match(csv, /,"'=hyperlink\(""http:\/\/x""\)",/);
+  assert.match(csv, /,'\+1,/);
+});
