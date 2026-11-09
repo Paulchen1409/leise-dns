@@ -803,6 +803,12 @@ $('#query-search').addEventListener('input', () => {
   clearTimeout(queryTimer);
   queryTimer = setTimeout(() => loadQueries({ reset: true }).catch(e => toast(e.message, true)), 150);
 });
+async function exportQueries(format) {
+  const result = await api.call('queries:export', { format, search: $('#query-search').value, status: queryStatus });
+  if (!result.canceled) toast(`${number(result.count)} Anfragen als ${format.toUpperCase()} gespeichert.`);
+}
+$('#export-csv')?.addEventListener('click', e => quietly(action(e.currentTarget, () => exportQueries('csv'))));
+$('#export-json')?.addEventListener('click', e => quietly(action(e.currentTarget, () => exportQueries('json'))));
 $('#feed-toggle').addEventListener('click', e => {
   feed = !feed;
   const b = e.currentTarget;

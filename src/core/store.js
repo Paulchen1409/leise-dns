@@ -140,6 +140,11 @@ class Store {
     const top = this.db.prepare('SELECT domain,SUM(count) count FROM top_domains WHERE day>=? GROUP BY domain ORDER BY count DESC LIMIT 8').all(day);
     return {...totals, rate:totals.total ? totals.blocked/totals.total*100 : 0, history, top};
   }
+  exportQueries({ search = '', status = 'all' } = {}) {
+    const term = String(search).slice(0, 253).replace(/[!%_]/g, '!$&');
+    if (!['all', 'allowed', 'blocked', 'error'].includes(status)) throw new Error('Ungültiger Status.');
+    return this.db.prepare(`SELECT time,domain,type,status,reason,ms FROM queries WHERE domain LIKE ? ESCAPE '!' AND (?='all' OR status=?) ORDER BY id DESC LIMIT 10000`).all(`%${term}%`, status, status);
+  }
   prune() {
     this.db.prepare('DELETE FROM queries WHERE time<? OR id < (SELECT COALESCE(MAX(id),0)-10000 FROM queries)').run(Date.now()-7*86400000);
     this.db.prepare('DELETE FROM hours WHERE time<?').run(Date.now()-90*86400000);

@@ -200,12 +200,14 @@
           <button data-status="error" aria-pressed="false">Fehler</button>
         </div>
         <span class="toolbar-spacer"></span>
+        <button id="export-csv" class="btn btn-sm" type="button">CSV</button>
+        <button id="export-json" class="btn btn-sm" type="button">JSON</button>
         <span class="live" id="feed-label"><span class="dot"></span><span id="feed-label-text">Live</span></span>
         <button id="feed-toggle" class="btn btn-sm" aria-pressed="false"><i data-icon="pause"></i><span>Anhalten</span></button>
       </div>
       <button class="new-pill glass glass-thin" id="new-queries" hidden><i data-icon="arrow" class="icon-sm icon-up"></i><span id="new-queries-text">Neue Anfragen</span></button>
       <article class="content panel log-panel"><div id="query-table"></div></article>
-      <p class="footnote">Die neuesten 200 Treffer. Gespeichert werden höchstens 10.000 Anfragen der letzten 7 Tage. Ein angehaltener Live-Feed pausiert nur die Anzeige.</p>
+      <p class="footnote">Die neuesten 200 Treffer. Gespeichert werden höchstens 10.000 Anfragen der letzten 7 Tage. CSV und JSON exportieren genau diese gespeicherten Treffer, gefiltert wie die Ansicht. Ein angehaltener Live-Feed pausiert nur die Anzeige.</p>
     </section>
 
     <!-- Filterlisten -->

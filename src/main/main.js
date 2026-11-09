@@ -3,6 +3,7 @@ const path=require('node:path');
 const fs=require('node:fs');
 const {Service}=require('../core/service');
 const {helpUrl}=require('../core/help-links');
+const {queriesToCsv,queriesToJson}=require('../core/query-export');
 let main,popup,tray,service,quitting=false,exitReady=false,pendingRules=null;
 const POPUP={width:360,height:492};
 const smoke=process.argv.includes('--smoke-test');
@@ -90,6 +91,15 @@ async function start() {
         const result=service.store.importRules(pendingRules,{mode});
         pendingRules=null;service.changed();
         return {ok:true,value:result};
+      }
+      if(action==='queries:export'){
+        const format=args?.format==='csv'?'csv':'json';
+        const rows=service.store.exportQueries({search:args?.search||'',status:args?.status||'all'});
+        const body=format==='csv'?queriesToCsv(rows):queriesToJson(rows);
+        const chosen=await dialog.showSaveDialog(main,{defaultPath:format==='csv'?'leise-dns-anfragen.csv':'leise-dns-anfragen.json',filters:[{name:format.toUpperCase(),extensions:[format]}]});
+        if(chosen.canceled || !chosen.filePath)return {ok:true,value:{canceled:true}};
+        fs.writeFileSync(chosen.filePath,body);
+        return {ok:true,value:{canceled:false,count:rows.length,format}};
       }
       if(action==='app:quit'){app.quit();return {ok:true};}
       if(action==='popup:fit'){if(event.sender!==popup.webContents)throw new Error('Zugriff verweigert.');fitPopup(args.height);return {ok:true};}
