@@ -1,5 +1,6 @@
 const { DatabaseSync } = require('node:sqlite');
 const { normalizeDomain, matches } = require('./domains');
+const { DomainSet, DomainMap } = require('./domain-set');
 // [id, name, url, enabled by default, category]
 const PRESETS = [
   ['stevenblack', 'StevenBlack', 'https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts', 1, 'ads'],
@@ -24,6 +25,9 @@ class Store {
       CREATE TABLE IF NOT EXISTS hours (time INTEGER PRIMARY KEY, total INTEGER NOT NULL, blocked INTEGER NOT NULL, errors INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS top_domains (day TEXT, domain TEXT, count INTEGER NOT NULL, PRIMARY KEY(day,domain));`);
     if (!this.db.prepare('PRAGMA table_info(lists)').all().some(c => c.name === 'category')) this.db.exec("ALTER TABLE lists ADD COLUMN category TEXT NOT NULL DEFAULT 'ads'");
+    for (const column of ['rules', 'used']) {
+      if (!this.db.prepare('PRAGMA table_info(lists)').all().some(c => c.name === column)) this.db.exec(`ALTER TABLE lists ADD COLUMN ${column} INTEGER NOT NULL DEFAULT 0`);
+    }
     const insert = this.db.prepare('INSERT OR IGNORE INTO lists(id,name,url,enabled,preset,category) VALUES(?,?,?,?,1,?)');
     const category = this.db.prepare('UPDATE lists SET category=? WHERE id=? AND preset=1');
     // Existing installations follow a changed address. IGNORE: a custom list may already use it.
@@ -38,8 +42,9 @@ class Store {
     this.generation = (this.generation || 0) + 1;
     this.white = new Set(); this.black = new Set();
     for (const r of this.db.prepare('SELECT * FROM rules').all()) this[r.kind].add(r.domain);
-    this.filtered = new Set(this.db.prepare('SELECT DISTINCT domain FROM list_domains JOIN lists ON lists.id=list_domains.list_id WHERE enabled=1').all().map(r => r.domain));
-    this.threats = new Map();
+    this.filtered = new DomainSet();
+    for (const r of this.db.prepare('SELECT DISTINCT domain FROM list_domains JOIN lists ON lists.id=list_domains.list_id WHERE enabled=1').all()) this.filtered.add(r.domain);
+    this.threats = new DomainMap();
     for (const r of this.db.prepare("SELECT d.domain, l.category, l.name FROM list_domains d JOIN lists l ON l.id=d.list_id WHERE l.enabled=1 AND l.category IN ('malware','phishing') ORDER BY l.category DESC").all()) {
       if (!this.threats.has(r.domain)) this.threats.set(r.domain, { category: r.category, list: r.name });
     }
@@ -50,7 +55,7 @@ class Store {
     const generation = this.generation = (this.generation || 0) + 1;
     const pause = () => new Promise(resolve => setImmediate(resolve));
     const stale = () => generation !== this.generation; // A newer reload has fresher data.
-    const filtered = new Set(); const threats = new Map(); let n = 0;
+    const filtered = new DomainSet(); const threats = new DomainMap(); let n = 0;
     for (const r of this.db.prepare('SELECT domain FROM list_domains JOIN lists ON lists.id=list_domains.list_id WHERE enabled=1').iterate()) {
       filtered.add(r.domain);
       if (++n % 5000 === 0) { await pause(); if (stale()) return; }
@@ -89,7 +94,9 @@ class Store {
   removeRule(kind, domain) { this.db.prepare('DELETE FROM rules WHERE domain=? AND kind=?').run(domain,kind); this.reload(); }
   lists() { return this.db.prepare('SELECT lists.*, (SELECT COUNT(*) FROM list_domains WHERE list_id=lists.id) AS count FROM lists ORDER BY preset DESC,name').all(); }
   // Writes only what changed, which keeps the transaction short. Returns whether anything changed.
-  writeList(id, domains, skipped) {
+  // stats may be the old skipped-count or {skipped, total, used}.
+  writeList(id, domains, skipped = 0) {
+    const stats = skipped && typeof skipped === 'object' ? skipped : { skipped: skipped || 0, total: 0, used: 0 };
     return this.transaction(() => {
       if (!this.db.prepare('SELECT id FROM lists WHERE id=?').get(id)) throw new Error('Liste wurde entfernt.');
       const wanted = new Set(domains);
@@ -101,7 +108,7 @@ class Store {
         if (!wanted.has(domain)) { remove.run(id, domain); changed = true; }
       }
       for (const d of wanted) if (!present.has(d)) { insert.run(id, d); changed = true; }
-      this.db.prepare('UPDATE lists SET updated=?,skipped=?,error=NULL WHERE id=?').run(Date.now(), skipped, id);
+      this.db.prepare('UPDATE lists SET updated=?,skipped=?,rules=?,used=?,error=NULL WHERE id=?').run(Date.now(), stats.skipped || 0, stats.total || 0, stats.used || 0, id);
       return changed;
     });
   }
@@ -138,6 +145,14 @@ class Store {
     this.db.prepare('DELETE FROM hours WHERE time<?').run(Date.now()-90*86400000);
     const limit = new Date(Date.now()-90*86400000).toISOString().slice(0,10);
     this.db.prepare('DELETE FROM top_domains WHERE day<?').run(limit);
+  }
+  memory() {
+    const usage = process.memoryUsage();
+    return {
+      rss: usage.rss, heapUsed: usage.heapUsed,
+      filtered: this.filtered.size, nodes: (this.filtered.nodes || 0) + (this.threats.nodes || 0),
+      threats: this.threats.size, rules: this.white.size + this.black.size
+    };
   }
   close() { this.db.close(); }
 }

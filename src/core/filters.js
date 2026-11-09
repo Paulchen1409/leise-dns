@@ -31,7 +31,7 @@ class Filters {
       const result=parseList(Buffer.concat(chunks).toString('utf8'));
       if (!result.domains.length) throw new Error('Keine nutzbaren Domain-Regeln gefunden. Die bisherige Liste bleibt erhalten.');
       if (guarded && l.count>=1000 && result.domains.length<l.count/2) throw new Error(`Die neue Liste ist ungewöhnlich klein (${result.domains.length} statt ${l.count} Domains). Die bisherige Liste bleibt erhalten; „Aktualisieren“ übernimmt sie trotzdem.`);
-      if (this.store.writeList(id,result.domains,result.skipped)) await this.store.reloadLists();
+      if (this.store.writeList(id,result.domains,{skipped:result.skipped,total:result.total,used:result.used})) await this.store.reloadLists();
     } catch(e) {
       const offline=e.name==='TypeError' || e.name==='TimeoutError';
       const message=offline?'Der Listenserver ist nicht erreichbar. Die bisherige Liste bleibt erhalten.':e.message;

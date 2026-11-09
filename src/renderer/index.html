@@ -150,7 +150,7 @@
         <div class="metric">
           <span class="metric-label">Aktive Filter-Domains</span>
           <strong class="metric-value num" id="metric-domains">0</strong>
-          <span class="metric-note">Ohne doppelte Einträge</span>
+          <span class="metric-note" id="metric-memory">Ohne doppelte Einträge</span>
         </div>
       </section>
 
@@ -213,7 +213,7 @@
       <div class="page-actions">
         <div class="callout">
           <i data-icon="info"></i>
-          <p>Domainfilter blockieren ganze Adressen. Browserregeln für einzelne Seiteninhalte aus EasyList und EasyPrivacy werden übersprungen und pro Liste gezählt.</p>
+          <p>Domainfilter blockieren ganze Adressen. Regeln wie ||example.com^ und ||example.com^$third-party werden genutzt. Pfade, Ausnahmen, kosmetische Filter und Regeln nur für bestimmte Seiten werden übersprungen; bei jeder Liste steht, welcher Anteil wirklich gilt.</p>
         </div>
         <button id="update-all" class="btn btn-accent"><i data-icon="refresh"></i><span>Alle aktualisieren</span></button>
       </div>

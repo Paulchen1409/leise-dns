@@ -2,15 +2,50 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');const os=require('node:os');const path=require('node:path');const dgram=require('node:dgram');const net=require('node:net');
 const packet=require('dns-packet');
-const {Store}=require('../src/core/store');const {normalizeDomain,parseList}=require('../src/core/domains');const {Filters}=require('../src/core/filters');const {DnsProxy,forward,DnsCache}=require('../src/core/dns-proxy');const {Service}=require('../src/core/service');
+const {Store}=require('../src/core/store');const {normalizeDomain,parseList,matches}=require('../src/core/domains');const {Filters}=require('../src/core/filters');const {DnsProxy,forward,DnsCache}=require('../src/core/dns-proxy');const {Service}=require('../src/core/service');
 
+test('Domain-Trie entspricht der Mengenprüfung und nennt den Speicher',()=>{
+  const {DomainSet,DomainMap}=require('../src/core/domain-set');
+  const set=new DomainSet();const plain=new Set();
+  for(let i=0;i<500;i++){const d=`a${i}.b${i%7}.example.com`;set.add(d);plain.add(d);set.add(d);}
+  assert.equal(set.size,500);assert.ok(set.nodes<500*4);
+  for(const d of plain){assert.equal(set.has(d),true);assert.equal(matches(set,'zz.'+d),true);assert.equal(matches(set,'not'+d),false);}
+  assert.deepEqual([...set].sort(),[...plain].sort());
+  const map=new DomainMap();
+  map.set('both.example.com',{category:'phishing',list:'P'});
+  assert.equal(map.has('both.example.com'),true);
+  map.set('both.example.com',{category:'malware',list:'M'});
+  assert.equal(map.size,1);assert.equal(map.get('both.example.com').list,'M');
+  assert.deepEqual([...map.entries()],[['both.example.com',{category:'malware',list:'M'}]]);
+  const store=new Store(':memory:');
+  try {
+    store.replaceList('stevenblack',['ads.example.com','tracker.example.com'],0);
+    assert.equal(store.filtered.has('ads.example.com'),true);
+    assert.equal(store.reason('sub.ads.example.com'),'Filterliste');
+    const mem=store.memory();
+    assert.equal(typeof mem.heapUsed,'number');assert.ok(mem.heapUsed>0);assert.equal(mem.filtered,2);assert.ok(mem.nodes>2);
+  } finally { store.close(); }
+});
 test('Domain-Eingaben werden normalisiert; URLs und ungültige Namen abgelehnt',()=>{
   assert.equal(normalizeDomain(' BÜCHER.de. '),'xn--bcher-kva.de');
   for(const d of ['https://example.com','example.com/ads','*.example.com','127.0.0.1','a..de','-bad.de','test.de:53'])assert.throws(()=>normalizeDomain(d));
 });
 test('Filterparser akzeptiert nur sichere ganze Domainregeln',()=>{
   const result=parseList('# Kommentar\n0.0.0.0 ads.example.com tracker.example.com\n||ad.example.org^\nplain.example.com\n||ads.example.com^\n@@||allowed.example.com^\n||unsafe.example.com^$third-party\nexample.com##.ad\nlocalhost\n');
-  assert.deepEqual(result.domains.sort(),['ad.example.org','ads.example.com','plain.example.com','tracker.example.com']);assert.equal(result.skipped,4);
+  assert.deepEqual(result.domains.sort(),['ad.example.org','ads.example.com','plain.example.com','tracker.example.com','unsafe.example.com']);
+  assert.equal(result.skipped,3);assert.equal(result.used,5);assert.equal(result.total,8);
+  const more=parseList([
+    '||path.example.com/ads.js^',
+    '||only.example.com^$domain=news.example',
+    '||typed.example.com^$script,third-party',
+    '|https://anchored.example.com^',
+    '|https://anchored.example.com/pixel^',
+    '||wild*.example.com^',
+    '||negated.example.com^$~third-party',
+    'plain-opt.example.net$image'
+  ].join('\n'));
+  assert.deepEqual(more.domains.sort(),['anchored.example.com','plain-opt.example.net','typed.example.com']);
+  assert.equal(more.used,3);assert.equal(more.skipped,5);assert.equal(more.total,8);
   assert.throws(()=>parseList('<!DOCTYPE html><html>'),/Webseite/);
 });
 test('Whitelist hat Vorrang, Domains matchen nur an Labelgrenzen; Daten bleiben gespeichert',()=>{
@@ -118,7 +153,9 @@ test('Listen-Update schreibt nur Änderungen und liefert dasselbe Ergebnis wie e
     assert.equal(store.writeList('stevenblack',['a.example.com','b.example.com'],0),true);
     assert.equal(store.writeList('stevenblack',['b.example.com','a.example.com'],3),false);
     assert.equal(store.lists().find(l=>l.id==='stevenblack').skipped,3);
-    assert.equal(store.writeList('stevenblack',['b.example.com','c.example.com'],0),true);
+    assert.equal(store.writeList('stevenblack',['b.example.com','c.example.com'],{skipped:4,total:10,used:6}),true);
+    const covered=store.lists().find(l=>l.id==='stevenblack');
+    assert.equal(covered.rules,10);assert.equal(covered.used,6);assert.equal(covered.skipped,4);
     store.writeList('phishingarmy',['both.example.com','p.example.com'],0);
     store.writeList('urlhaus',['both.example.com','m.example.com'],0);
     store.writeList('easylist',['off.example.com'],0);

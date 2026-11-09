@@ -198,6 +198,11 @@ function renderStatus(s) {
   press($('#upstream'), '[data-upstream]', b => b.dataset.upstream === s.upstream);
   const cacheNote = $('#cache-note');
   if (cacheNote && s.cache) cacheNote.textContent = `Zwischenspeicher: ${number(s.cache.entries)} von ${number(s.cache.maxEntries)} Antworten, höchstens ${s.cache.maxTtl} Sekunden, ${number(s.cache.hits)} Treffer. Kürzere TTLs bleiben kürzer.`;
+  const memoryNote = $('#metric-memory');
+  if (memoryNote && s.memory) {
+    const mb = (s.memory.heapUsed / 1048576).toLocaleString('de-DE', { maximumFractionDigits: 1 });
+    memoryNote.textContent = `Ohne doppelte Einträge · ${mb} MB Arbeitsspeicher`;
+  }
   $('#autostart-toggle').setAttribute('aria-checked', String(!!s.autostart));
   $('#autoupdate-toggle').setAttribute('aria-checked', String(!!s.autoUpdate));
   renderApproval(s);
@@ -461,8 +466,11 @@ function filterCard(l) {
     : l.error ? `<span class="status-text tone-danger">${icon('alert')}Letztes Update fehlgeschlagen</span>`
     : l.enabled ? `<span class="status-text tone-success"><span class="dot"></span>Aktiv</span>`
     : `<span class="status-text tone-neutral"><span class="dot"></span>Ausgeschaltet</span>`;
+  const coverage = l.rules > 0
+    ? `${number(l.used)} von ${number(l.rules)} Regeln genutzt (${Math.round(100 * l.used / l.rules)} %). ${number(l.skipped)} übersprungen: Pfade, Ausnahmen, kosmetische Filter und Regeln, die nur auf bestimmten Seiten gelten.`
+    : (l.skipped ? `${number(l.skipped)} nicht nutzbare Einträge übersprungen.` : '');
   const detail = (l.error ? `<div class="callout callout-danger" role="alert">${icon('alert')}<span class="callout-text">${esc(l.error)}</span></div>` : '')
-    + (l.skipped ? `<p class="skipped-note">${number(l.skipped)} nicht nutzbare Einträge übersprungen (Browserregeln, Ausnahmen oder Regeln mit Optionen).</p>` : '');
+    + (coverage ? `<p class="skipped-note">${coverage}</p>` : '');
   return `<article class="filter-card${l.enabled ? '' : ' is-off'}" aria-label="${esc(l.name)}">
     <div class="filter-icon">${icon('layers')}</div>
     <div class="filter-main"><div class="filter-title"><h3 title="${esc(l.name)}">${esc(l.name)}</h3></div><div class="filter-sub">${l.preset ? `<span class="tag${l.category === 'ads' ? '' : ' tag-danger'}">${{ malware: 'Malware-Schutz', phishing: 'Phishing-Schutz' }[l.category] || 'Werbung & Tracker'}</span>` : '<span class="tag">Eigene Liste</span>'}<span class="filter-url" title="${esc(l.url)}">${esc(l.url)}</span></div></div>
