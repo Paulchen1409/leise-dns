@@ -6,7 +6,7 @@ Ein lokaler DNS-Adblocker für **diesen Windows-PC**. Electron, Vanilla JavaScri
 
 `Start-LeiseDNS.cmd` doppelklicken. Alternativ `dist/win-unpacked/Leise DNS.exe` starten; dafür muss der ganze Ordner `win-unpacked` zusammenbleiben. Der aktuelle Installer liegt unter `dist/Leise DNS Setup 0.6.1.exe`.
 
-Version 0.2.0 ist ein vollständiges visuelles Redesign im Stil der Liquid-Glass-Designsprache (siehe Abschnitt 3). DNS-Logik, Administratorfreigabe, Wiederherstellung, Datenbank und Filterparser sind unverändert. Für ein Update die laufende App über das Tray-Symbol beenden und den neuen Installer ausführen; Regeln und Statistiken bleiben erhalten.
+Version 0.7.0 prüft unter Einstellungen, ob es auf GitHub eine neuere Version gibt, und zeigt die Änderungsnotizen. Installiert wird nichts automatisch. Die Versionszeile in der Seitenleiste kommt aus der App selbst.
 
 Version 0.1.2 korrigiert das Einlesen der DNS-Sicherung unter Windows PowerShell 5.1. Eine zusätzliche Array-Klammer fasste IPv4 und IPv6 versehentlich zusammen und verursachte die Meldung „Netzwerkadapter Ethernet Ethernet ist nicht verfügbar“. Ein neuer Test prüft die echte Wiederherstellungsfunktion mit simulierten Adaptern: DHCP, statische Serverreihenfolge, geänderte Adapterindizes und den Erhalt der Sicherung bei fehlenden Adaptern. Alle 13 Tests bestehen. Die vorhandene DNS-Sicherung auf dem Entwicklungs-PC wurde mit dem korrigierten Skript erfolgreich wiederhergestellt; die erledigte Boot-Aufgabe wurde entfernt und der DNS-Status anschließend geprüft.
 
@@ -130,7 +130,7 @@ Unterstützt werden Hosts-Dateien, eine Domain pro Zeile, `||domain.example^` un
 
 Domainzähler pro Liste zählen eindeutige Domains innerhalb dieser Liste; eine Domain kann in mehreren Listen vorkommen. Die Dashboard-Zahl entfernt Überschneidungen zwischen aktivierten Listen. Eigene Blacklist-Einträge werden separat gehalten und sind nicht Teil dieser Filterlisten-Zahl.
 
-Whitelist und Blacklist haben je eine eigene Seite mit Live-Suche. Ein Eintrag schließt Unterdomains ein; `example.com` trifft `a.example.com`, aber nicht `notexample.com`. Dieselbe exakte Domain wird beim Hinzufügen in die andere Liste verschoben. Eine erlaubte übergeordnete Domain hat weiterhin Vorrang vor einer spezielleren Sperre.
+Whitelist und Blacklist haben je eine eigene Seite mit Live-Suche. Ein Eintrag schließt Unterdomains ein; `example.com` trifft `a.example.com`, aber nicht `notexample.com`. Dieselbe exakte Domain wird beim Hinzufügen in die andere Liste verschoben. Eine erlaubte übergeordnete Domain hat weiterhin Vorrang vor einer spezielleren Sperre. Unter Einstellungen → Regeln sichern lassen sich beide Listen als JSON speichern und auf einem anderen PC zusammenführen oder ersetzen. Filterlisten sind nicht Teil der Datei.
 
 ## 5. Query-Log und Speicherung
 

@@ -155,5 +155,38 @@ class Store {
     };
   }
   close() { this.db.close(); }
+  exportRules() {
+    return {
+      leise: 1, kind: 'rules', exported: new Date().toISOString(),
+      white: this.rules('white'), black: this.rules('black'),
+      upstream: this.get('upstream', 'cloudflare'), autoUpdate: this.get('autoUpdate', true)
+    };
+  }
+  // Validates every domain before anything is written. Whitelist wins over blacklist.
+  previewRules(data) {
+    if (!data || data.kind !== 'rules' || data.leise !== 1) throw new Error('Diese Datei ist keine Leise-DNS-Sicherung.');
+    const whiteIn = Array.isArray(data.white) ? data.white : [];
+    const blackIn = Array.isArray(data.black) ? data.black : [];
+    if (whiteIn.length + blackIn.length > 20000) throw new Error('Die Sicherung enthält zu viele Regeln.');
+    return { white: whiteIn.map(domain => normalizeDomain(String(domain))).length, black: blackIn.map(domain => normalizeDomain(String(domain))).length };
+  }
+  importRules(data, { mode = 'merge' } = {}) {
+    if (!data || data.kind !== 'rules' || data.leise !== 1) throw new Error('Diese Datei ist keine Leise-DNS-Sicherung.');
+    const whiteIn = Array.isArray(data.white) ? data.white : [];
+    const blackIn = Array.isArray(data.black) ? data.black : [];
+    if (whiteIn.length + blackIn.length > 20000) throw new Error('Die Sicherung enthält zu viele Regeln.');
+    const white = whiteIn.map(domain => normalizeDomain(String(domain)));
+    const black = blackIn.map(domain => normalizeDomain(String(domain)));
+    this.transaction(() => {
+      if (mode === 'replace') this.db.prepare('DELETE FROM rules').run();
+      const insert = this.db.prepare('INSERT OR REPLACE INTO rules VALUES(?,?)');
+      for (const domain of black) insert.run(domain, 'black');
+      for (const domain of white) insert.run(domain, 'white');
+      if (['cloudflare', 'google', 'quad9'].includes(data.upstream)) this.set('upstream', data.upstream);
+      if (typeof data.autoUpdate === 'boolean') this.set('autoUpdate', data.autoUpdate);
+    });
+    this.reload();
+    return { white: white.length, black: black.length, mode };
+  }
 }
 module.exports = { Store, THREATS };

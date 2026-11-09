@@ -203,6 +203,9 @@ function renderStatus(s) {
     const mb = (s.memory.heapUsed / 1048576).toLocaleString('de-DE', { maximumFractionDigits: 1 });
     memoryNote.textContent = `Ohne doppelte Einträge · ${mb} MB Arbeitsspeicher`;
   }
+  const version = $('#app-version');
+  if (version && s.version) version.textContent = `Leise DNS · Version ${s.version}`;
+  renderUpdate(s);
   $('#autostart-toggle').setAttribute('aria-checked', String(!!s.autostart));
   $('#autoupdate-toggle').setAttribute('aria-checked', String(!!s.autoUpdate));
   renderApproval(s);
@@ -215,6 +218,33 @@ function renderStatus(s) {
       : empty('network', 'Noch kein Netzwerkadapter gefunden.', 'Mit „Status prüfen“ erneut nachsehen.');
   }
   renderGlobalError(s);
+}
+
+function renderUpdate(s) {
+  const status = $('#update-status');
+  const text = $('#update-status-text');
+  const notes = $('#update-notes');
+  const open = $('#open-update');
+  if (!status || !text) return;
+  const info = s.update;
+  if (!info) {
+    status.className = 'approval-status status-text tone-neutral';
+    text.textContent = `Installiert ist ${s.version || ''}. Noch nicht geprüft.`;
+    if (notes) notes.hidden = true;
+    if (open) open.hidden = true;
+    return;
+  }
+  if (info.updateAvailable) {
+    status.className = 'approval-status status-text tone-warning';
+    text.textContent = `Version ${info.latest} ist verfügbar. Installiert ist ${info.current || s.version}.`;
+    if (notes) { notes.hidden = !info.notes; notes.textContent = info.notes || ''; }
+    if (open) open.hidden = false;
+  } else {
+    status.className = 'approval-status status-text tone-success';
+    text.textContent = `Du hast die aktuelle Version ${info.current || s.version}.`;
+    if (notes) notes.hidden = true;
+    if (open) open.hidden = true;
+  }
 }
 
 // "Windows-Freigabe merken": setting plus the real state of the Windows task.
@@ -651,18 +681,21 @@ async function allowOrBlock(b) {
 }
 
 // Generic confirmation dialog (glass); resolves true only on the confirm button.
-function confirmDialog({ title, text, confirm, symbol = 'trash', danger = true }) {
+function confirmDialog({ title, text, confirm, symbol = 'trash', danger = true, alt = '' }) {
   return new Promise(resolve => {
-    const dialog = $('#confirm-dialog'), ok = $('#confirm-delete');
+    const dialog = $('#confirm-dialog'), ok = $('#confirm-delete'), other = $('#confirm-alt');
     $('#confirm-title').textContent = title;
     $('#confirm-text').textContent = text;
     $('#confirm-symbol').innerHTML = icon(symbol);
     ok.className = `btn ${danger ? 'btn-danger-solid' : 'btn-accent'}`;
     ok.innerHTML = `${icon(symbol)}<span>${esc(confirm)}</span>`;
+    other.hidden = !alt;
+    other.textContent = alt || '';
     let result = false;
     ok.onclick = () => { result = true; dialog.close(); };
+    other.onclick = () => { result = 'alt'; dialog.close(); };
     $('#confirm-cancel').onclick = () => dialog.close();
-    dialog.onclose = () => resolve(result);
+    dialog.onclose = () => { other.hidden = true; resolve(result); };
     dialog.showModal();
   });
 }
@@ -742,6 +775,29 @@ $('#approval-toggle').addEventListener('click', e => {
   quietly(action(e.currentTarget, () => api.call('approval:set', { remember }), remember ? 'Die Freigabe wird beim nächsten Einschalten gespeichert.' : 'Windows fragt wieder bei jedem Einschalten.'));
 });
 $('#check-dns').addEventListener('click', e => quietly(action(e.currentTarget, () => api.call('dns:inspect'), 'DNS-Status geprüft.')));
+$('#check-update').addEventListener('click', e => quietly(action(e.currentTarget, async () => {
+  const info = await api.call('update:check');
+  toast(info.updateAvailable ? `Version ${info.latest} ist verfügbar. Die Notizen stehen in den Einstellungen.` : 'Du hast die aktuelle Version.');
+})));
+$('#open-update')?.addEventListener('click', () => quietly(api.call('update:open').catch(err => { toast(err.message, true); throw err; })));
+$('#export-rules')?.addEventListener('click', e => quietly(action(e.currentTarget, async () => {
+  const result = await api.call('rules:export');
+  if (!result.canceled) toast(`${result.count} Regeln gespeichert.`);
+})));
+$('#import-rules')?.addEventListener('click', async () => {
+  try {
+    const picked = await api.call('rules:pick');
+    if (picked.canceled) return;
+    const choice = await confirmDialog({
+      title: 'Sicherung laden?', symbol: 'list', danger: false, confirm: 'Zusammenführen', alt: 'Ersetzen',
+      text: `Die Datei enthält ${picked.white} erlaubte und ${picked.black} gesperrte Domains. Zusammenführen behält, was schon da ist, und eine erlaubte Domain gewinnt. Ersetzen löscht die bisherigen eigenen Regeln.`
+    });
+    if (!choice) return;
+    const result = await api.call('rules:apply', { mode: choice === 'alt' ? 'replace' : 'merge' });
+    toast(result.mode === 'replace' ? 'Regeln ersetzt.' : 'Regeln zusammengeführt.');
+    await refresh();
+  } catch (err) { toast(err.message, true); }
+});
 $('#quit-app').addEventListener('click', () => api.call('app:quit'));
 $('#query-search').addEventListener('input', () => {
   clearTimeout(queryTimer);

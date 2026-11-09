@@ -1,8 +1,9 @@
 const {app,BrowserWindow,Tray,Menu,nativeImage,ipcMain,dialog,screen,safeStorage,shell}=require('electron');
 const path=require('node:path');
+const fs=require('node:fs');
 const {Service}=require('../core/service');
 const {helpUrl}=require('../core/help-links');
-let main,popup,tray,service,quitting=false,exitReady=false;
+let main,popup,tray,service,quitting=false,exitReady=false,pendingRules=null;
 const POPUP={width:360,height:492};
 const smoke=process.argv.includes('--smoke-test');
 // Started by Windows after sign-in: stay in the tray, no window.
@@ -63,6 +64,33 @@ async function start() {
     try {
       if(action==='window:open'){openDashboard();return {ok:true};}
       if(action==='help:open'){await shell.openExternal(helpUrl(args?.id));return {ok:true};}
+      if(action==='update:open'){
+        const url=service.updateInfo?.url || service.store.get('updateCheck',null)?.url || '';
+        if(!/^https:\/\/github\.com\/Paulchen1409\/leise-dns\/releases\//.test(url))throw new Error('Kein Release-Link.');
+        await shell.openExternal(url);return {ok:true};
+      }
+      if(action==='rules:export'){
+        const data=service.store.exportRules();
+        const chosen=await dialog.showSaveDialog(main,{defaultPath:'leise-dns-regeln.json',filters:[{name:'JSON',extensions:['json']}]});
+        if(chosen.canceled || !chosen.filePath)return {ok:true,value:{canceled:true}};
+        fs.writeFileSync(chosen.filePath,JSON.stringify(data,null,2));
+        return {ok:true,value:{canceled:false,count:data.white.length+data.black.length}};
+      }
+      if(action==='rules:pick'){
+        const chosen=await dialog.showOpenDialog(main,{filters:[{name:'JSON',extensions:['json']}],properties:['openFile']});
+        if(chosen.canceled || !chosen.filePaths?.[0])return {ok:true,value:{canceled:true}};
+        let data;try{data=JSON.parse(fs.readFileSync(chosen.filePaths[0],'utf8'));}catch{throw new Error('Die Datei ist kein gültiges JSON.');}
+        const preview=service.store.previewRules(data);
+        pendingRules=data;
+        return {ok:true,value:{canceled:false,white:preview.white,black:preview.black}};
+      }
+      if(action==='rules:apply'){
+        if(!pendingRules)throw new Error('Keine Sicherung ausgewählt.');
+        const mode=args?.mode==='replace'?'replace':'merge';
+        const result=service.store.importRules(pendingRules,{mode});
+        pendingRules=null;service.changed();
+        return {ok:true,value:result};
+      }
       if(action==='app:quit'){app.quit();return {ok:true};}
       if(action==='popup:fit'){if(event.sender!==popup.webContents)throw new Error('Zugriff verweigert.');fitPopup(args.height);return {ok:true};}
       if(action==='blockpage:preview'){

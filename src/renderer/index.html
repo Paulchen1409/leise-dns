@@ -38,7 +38,7 @@
         <div class="local-title"><i data-icon="computer"></i><span>Nur auf diesem PC</span></div>
         <p>Router und Heimnetz bleiben unverändert. Regeln und Statistiken bleiben auf diesem Gerät.</p>
       </div>
-      <p class="version">Leise DNS · Version 0.6.1</p>
+      <p class="version" id="app-version">Leise DNS · Version 0.7.0</p>
     </div>
   </aside>
 
@@ -305,6 +305,32 @@
 
         <article class="content panel form-panel">
           <header class="form-head">
+            <h2 class="panel-title">Version</h2>
+            <p class="panel-sub" id="version-line">Leise DNS prüft sich selbst, Filterlisten bleiben davon getrennt.</p>
+          </header>
+          <p class="approval-status status-text tone-neutral" id="update-status"><span class="dot"></span><span id="update-status-text">Noch nicht geprüft.</span></p>
+          <pre class="update-notes" id="update-notes" hidden></pre>
+          <div class="button-row">
+            <button id="check-update" class="btn" type="button"><i data-icon="refresh"></i>Nach Updates suchen</button>
+            <button id="open-update" class="btn btn-accent" type="button" hidden>Release-Seite öffnen</button>
+          </div>
+          <p class="help">Filterlisten erneuern sich von selbst. Die App fragt höchstens einmal am Tag bei GitHub, ob es eine neuere Version gibt, und zeigt die Änderungsnotizen. Installiert wird nichts von allein.</p>
+        </article>
+
+        <article class="content panel form-panel">
+          <header class="form-head">
+            <h2 class="panel-title">Regeln sichern</h2>
+            <p class="panel-sub">Für einen anderen PC oder ein Backup. Filterlisten kommen über ihre Adressen und sind nicht Teil der Datei.</p>
+          </header>
+          <div class="button-row">
+            <button id="export-rules" class="btn" type="button"><i data-icon="list"></i>Sicherung speichern</button>
+            <button id="import-rules" class="btn" type="button"><i data-icon="plus"></i>Sicherung laden</button>
+          </div>
+          <p class="help">Enthalten sind erlaubte und gesperrte Domains, der DNS-Anbieter und die Einstellung für automatische Listen-Updates. Zusammenführen behält vorhandene Einträge; eine Domain, die in der Datei erlaubt ist, wird auch hier erlaubt.</p>
+        </article>
+
+        <article class="content panel form-panel">
+          <header class="form-head">
             <h2 class="panel-title">DNS-Anbieter</h2>
             <p class="panel-sub">Erlaubte Anfragen werden an diesen Anbieter weitergeleitet – über normales DNS per UDP/TCP.</p>
           </header>
@@ -370,6 +396,7 @@
     <p id="confirm-text"></p>
     <div class="dialog-actions">
       <button id="confirm-cancel" class="btn" autofocus>Abbrechen</button>
+      <button id="confirm-alt" class="btn" hidden>Zusammenführen</button>
       <button id="confirm-delete" class="btn btn-danger-solid"><i data-icon="trash"></i>Liste löschen</button>
     </div>
   </dialog>

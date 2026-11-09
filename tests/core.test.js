@@ -4,6 +4,26 @@ const fs=require('node:fs');const os=require('node:os');const path=require('node
 const packet=require('dns-packet');
 const {Store}=require('../src/core/store');const {normalizeDomain,parseList,matches}=require('../src/core/domains');const {Filters}=require('../src/core/filters');const {DnsProxy,forward,DnsCache}=require('../src/core/dns-proxy');const {Service}=require('../src/core/service');
 
+test('Regeln lassen sich sichern und wieder laden; die Erlaubnis gewinnt',()=>{
+  const store=new Store(':memory:');
+  try {
+    store.addRule('white','keep.example.com');store.addRule('black','old.example.com');store.set('upstream','quad9');
+    const file=store.exportRules();
+    assert.equal(file.kind,'rules');assert.deepEqual(file.white,['keep.example.com']);
+    store.addRule('black','extra.example.com');
+    const merged=store.importRules({...file,black:['old.example.com','keep.example.com','new.example.com'],white:['keep.example.com']},{mode:'merge'});
+    assert.equal(store.reason('keep.example.com'),null);
+    assert.equal(store.reason('new.example.com'),'Eigene Sperrliste');
+    assert.equal(store.reason('extra.example.com'),'Eigene Sperrliste');
+    assert.equal(store.get('upstream'),'quad9');
+    assert.equal(merged.mode,'merge');
+    store.importRules({leise:1,kind:'rules',white:['only.example.com'],black:[]},{mode:'replace'});
+    assert.deepEqual(store.rules('white'),['only.example.com']);assert.deepEqual(store.rules('black'),[]);
+    assert.throws(()=>store.importRules({kind:'nope'},{mode:'merge'}),/keine Leise-DNS-Sicherung/);
+    assert.throws(()=>store.importRules({leise:1,kind:'rules',white:['https://bad.example'],black:[]}),/Domain/);
+    assert.equal(store.rules('white')[0],'only.example.com');
+  } finally { store.close(); }
+});
 test('Domain-Trie entspricht der Mengenprüfung und nennt den Speicher',()=>{
   const {DomainSet,DomainMap}=require('../src/core/domain-set');
   const set=new DomainSet();const plain=new Set();

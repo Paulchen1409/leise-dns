@@ -223,6 +223,11 @@ main {
   text-align: center;
 }
 .help { font-size: var(--fs-footnote); line-height: 1.55; color: var(--text-3); }
+.update-notes {
+  margin: 12px 0 0; padding: 12px 14px; max-height: 220px; overflow: auto; white-space: pre-wrap;
+  font: 13px/1.5 "Cascadia Mono", Consolas, monospace; color: var(--text-2);
+  background: var(--fill-1); border-radius: var(--r-md);
+}
 
 /* ---------- Protection hero ---------- */
 /* The state colour lives as light *behind* the glass; the material blurs and

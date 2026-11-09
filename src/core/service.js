@@ -6,6 +6,8 @@ const {DnsProxy,UPSTREAMS}=require('./dns-proxy');
 const {Filters}=require('./filters');
 const {BlockPage}=require('./block-page');
 const {WindowsDns}=require('../platform/windows-dns');
+const {parseRelease,RELEASE}=require('./updates');
+const {version:APP_VERSION}=require('../../package.json');
 class Service extends EventEmitter {
   // blockPage: options for the local block page (off unless given, e.g. in tests).
   constructor(dataPath,{port=53,dns,blockPage=null}={}) {
@@ -30,6 +32,7 @@ class Service extends EventEmitter {
       blockPage:this.blockPage?.status() || null,
       cache:{entries:this.proxy.cache.size,hits:this.proxy.cache.hits,misses:this.proxy.cache.misses,maxTtl:this.proxy.cache.maxTtl,maxEntries:this.proxy.cache.maxEntries},
       memory:this.store.memory(),
+      version:APP_VERSION,update:this.updateInfo || null,
       approval:{remember:this.store.get('rememberApproval',true),task:this.dns.task?.state || 'unknown',error:this.dns.task?.error || ''},upstream:this.store.get('upstream','cloudflare'),port:this.proxy.port};
   }
   async start({download=true}={}) {
@@ -50,6 +53,7 @@ class Service extends EventEmitter {
       // The first check waits a moment: right after a Windows start the network may not be up yet.
       this.updateStart=setTimeout(()=>this.autoUpdate(),60000);
       this.updater=setInterval(()=>this.autoUpdate(),15*60000);
+      this.updateCheckTimer=setTimeout(()=>{this.checkForUpdate().then(()=>this.changed()).catch(()=>{});},90000);
     }
   }
   autoUpdate() {
@@ -95,6 +99,7 @@ class Service extends EventEmitter {
         this.autoUpdate().catch(()=>{});
         return;
       case 'upstream':if(!Object.hasOwn(UPSTREAMS,args.value))throw new Error('Unbekannter DNS-Anbieter.');this.store.set('upstream',args.value);this.changed();return;
+      case 'update:check':return this.checkForUpdate({force:true});
       case 'approval:set': {
         if(typeof args.remember!=='boolean')throw new Error('Ungültige Einstellung.');
         this.store.set('rememberApproval',args.remember);
@@ -118,10 +123,18 @@ class Service extends EventEmitter {
       default:throw new Error('Unbekannte Aktion.');
     }
   }
+  async checkForUpdate({force=false}={}) {
+    const last=this.store.get('updateCheck',null);
+    if(!force && last && Date.now()-(last.checked||0)<20*3600000 && last.latest){this.updateInfo={...last,current:APP_VERSION,cached:true};return this.updateInfo;}
+    const response=await fetch(RELEASE,{headers:{'User-Agent':'LeiseDNS','Accept':'application/vnd.github+json'},signal:AbortSignal.timeout(15000)});
+    if(!response.ok)throw new Error(`Update-Prüfung fehlgeschlagen (HTTP ${response.status}).`);
+    const info={...parseRelease(await response.json(),APP_VERSION),checked:Date.now()};
+    this.store.set('updateCheck',info);this.updateInfo=info;return info;
+  }
   async close() {
     this.closing=true;
     try {await this.dns.close();}catch(e){this.closing=false;throw e;}
-    clearInterval(this.timer);clearInterval(this.inspector);clearInterval(this.pruner);clearTimeout(this.updateStart);clearInterval(this.updater);
+    clearInterval(this.timer);clearInterval(this.inspector);clearInterval(this.pruner);clearTimeout(this.updateStart);clearInterval(this.updater);clearTimeout(this.updateCheckTimer);
     await this.proxy.stop();
     await this.blockPage?.stop();
     // Pending filter downloads can still finish. SQLite is checkpointed by each committed transaction.
