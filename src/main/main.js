@@ -1,6 +1,7 @@
 const {app,BrowserWindow,Tray,Menu,nativeImage,ipcMain,dialog,screen,safeStorage,shell}=require('electron');
 const path=require('node:path');
 const {Service}=require('../core/service');
+const {helpUrl}=require('../core/help-links');
 let main,popup,tray,service,quitting=false,exitReady=false;
 const POPUP={width:360,height:492};
 const smoke=process.argv.includes('--smoke-test');
@@ -61,6 +62,7 @@ async function start() {
     if(![main.webContents,popup.webContents].includes(event.sender) || event.senderFrame!==event.sender.mainFrame)return {ok:false,error:'Zugriff verweigert.'};
     try {
       if(action==='window:open'){openDashboard();return {ok:true};}
+      if(action==='help:open'){await shell.openExternal(helpUrl(args?.id));return {ok:true};}
       if(action==='app:quit'){app.quit();return {ok:true};}
       if(action==='popup:fit'){if(event.sender!==popup.webContents)throw new Error('Zugriff verweigert.');fitPopup(args.height);return {ok:true};}
       if(action==='blockpage:preview'){

@@ -138,7 +138,7 @@ Das Query-Log zeigt Zeit, Domain, Status und eine direkte Whitelist-/Blacklist-A
 
 Die SQLite-Datei `leise.sqlite` liegt im Electron-Benutzerdatenordner (`app.getPath('userData')`, typischerweise unter `%APPDATA%`). WAL-Transaktionen sichern Regeln und Zähler sofort. Einzelanfragen bleiben für sieben Tage bzw. ungefähr 10.000 Einträge erhalten, stündliche Statistiken und Domain-Ranglisten für 90 Tage. Die Aufräumroutine läuft jede Minute. Das Query-Log zeigt die neuesten 200 passenden Einträge.
 
-DNS-Sperren können Werbung und Inhalt derselben Domain nicht trennen. Apps mit eigenem DNS-over-HTTPS können System-DNS umgehen. Bereits von Windows oder einer Anwendung zwischengespeicherte Antworten können nach Regeländerungen noch bis zum Ablauf ihres Caches verwendet werden. Beim Umstellen des System-DNS leert der Hilfsprozess den Windows-DNS-Cache.
+DNS-Sperren können Werbung und Inhalt derselben Domain nicht trennen. Apps mit eigenem DNS-over-HTTPS oder DNS-over-TLS können System-DNS umgehen. Die Übersicht zeigt deshalb den Hinweis „Einige Apps können den Schutz umgehen“ mit den Schaltern in Chrome, Edge, Firefox, Brave und Windows 11; die Hilfeseiten öffnet nur eine feste Adressliste. Bereits von Windows oder einer Anwendung zwischengespeicherte Antworten können nach Regeländerungen noch bis zum Ablauf ihres Caches verwendet werden. Beim Umstellen des System-DNS leert der Hilfsprozess den Windows-DNS-Cache.
 
 ## Entwickeln und prüfen
 

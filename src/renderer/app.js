@@ -626,6 +626,7 @@ document.addEventListener('click', e => {
       .then(ok => ok && quietly(action(b, () => api.call('list:remove', { id: l.id }), 'Filterliste gelöscht.')));
   }
   if (b.dataset.preview) quietly(api.call('blockpage:preview', { category: b.dataset.preview }).catch(err => { toast(err.message, true); throw err; }));
+  if (b.dataset.help) quietly(api.call('help:open', { id: b.dataset.help }).catch(err => { toast(err.message, true); throw err; }));
   if (b.dataset.ruleDomain) allowOrBlock(b);
   if (b.dataset.removeDomain) quietly(action(b, () => api.call('rule:remove', { kind: b.dataset.kind, domain: b.dataset.removeDomain }), 'Eintrag entfernt.'));
 });

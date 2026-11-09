@@ -87,6 +87,26 @@
       </article>
       </div>
 
+      <aside class="callout callout-warning bypass-hint" aria-labelledby="bypass-title">
+        <i data-icon="alert"></i>
+        <div>
+          <span class="callout-title" id="bypass-title">Einige Apps können den Schutz umgehen</span>
+          <p>Chrome, Edge, Firefox, Brave und manche Apps fragen über eigenes verschlüsseltes DNS (DNS-over-HTTPS oder DNS-over-TLS) und sehen den Windows-DNS-Dienst nicht. Leise DNS kann diese Anfragen weder sperren noch zählen. Schalte „Sicheres DNS“ bzw. „DNS über HTTPS“ dort aus, oder stelle es auf den System-DNS-Dienst.</p>
+          <ul class="help-list">
+            <li><b>Chrome und Brave:</b> Einstellungen → Datenschutz und Sicherheit → Sicherheit → „Sicheres DNS verwenden“ aus. Bei Brave heißt die Seite <b>brave://settings/security</b>.</li>
+            <li><b>Edge:</b> Einstellungen → Datenschutz, Suche und Dienste → Sicherheit → „Sicheres DNS verwenden“ aus.</li>
+            <li><b>Firefox:</b> Einstellungen → Datenschutz &amp; Sicherheit → DNS über HTTPS → Aus.</li>
+            <li><b>Windows 11:</b> Einstellungen → Netzwerk und Internet → WLAN oder Ethernet → DNS-Serverzuweisung → Bearbeiten → „Bevorzugte DNS-Verschlüsselung“ auf „Nur unverschlüsselt“. Unter Windows 10 gibt es diese Verschlüsselung nicht.</li>
+          </ul>
+          <div class="button-row">
+            <button type="button" class="btn btn-sm" data-help="chrome">Anleitung Chrome</button>
+            <button type="button" class="btn btn-sm" data-help="edge">Anleitung Edge</button>
+            <button type="button" class="btn btn-sm" data-help="firefox">Anleitung Firefox</button>
+            <button type="button" class="btn btn-sm" data-help="windows">Anleitung Windows</button>
+          </div>
+        </div>
+      </aside>
+
       <div class="pause-row">
         <div>
           <h2 class="section-title">Schutz pausieren</h2>
@@ -330,7 +350,7 @@
           <header class="form-head"><h2 class="panel-title">Gut zu wissen</h2></header>
           <ul class="notes">
             <li>Das Schließen des Fensters lässt Leise DNS im Infobereich weiterlaufen. Über das Tray-Symbol erreichst du Schalter und Dashboard.</li>
-            <li>Apps mit eigenem verschlüsseltem DNS können den lokalen Filter umgehen. Werbung von derselben Domain wie der Inhalt lässt sich per DNS nicht getrennt sperren.</li>
+            <li>Apps mit eigenem verschlüsseltem DNS können den lokalen Filter umgehen. Die Schritte stehen auf der Übersicht unter „Einige Apps können den Schutz umgehen“. Werbung von derselben Domain wie der Inhalt lässt sich per DNS nicht getrennt sperren.</li>
             <li>Neue Netzwerkadapter, etwa nach dem Verbinden eines VPN, werden durch Aus- und Einschalten übernommen. Leise DNS ändert keine Routereinstellungen.</li>
           </ul>
           <div class="button-row">

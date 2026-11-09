@@ -444,7 +444,17 @@ button { cursor: pointer; }
   box-shadow: inset 0 0 0 0.5px rgba(240, 145, 143, 0.4);
 }
 .callout-danger .callout-title { color: #fff; font-weight: var(--fw-semibold); display: block; margin-bottom: 2px; }
+.callout-warning {
+  --tone: var(--amber);
+  color: #ffe8c2;
+  background: linear-gradient(0deg, rgba(243, 195, 124, 0.12), rgba(243, 195, 124, 0.12)), rgba(36, 28, 16, 0.92);
+  box-shadow: inset 0 0 0 0.5px rgba(243, 195, 124, 0.45);
+}
+.callout-warning .callout-title { color: #fff; font-weight: var(--fw-semibold); display: block; margin-bottom: 2px; }
 .callout-text { overflow-wrap: anywhere; }
+.help-list { margin: 8px 0 0; padding-left: 18px; }
+.help-list li { margin: 4px 0; }
+.help-list b { color: var(--text-1); }
 
 /* ---------- Empty states ---------- */
 .empty {
