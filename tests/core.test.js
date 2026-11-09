@@ -223,6 +223,25 @@ test('DNS-Cache: TTL-Obergrenze, Größe, keine Sperren, getrennte Server',async
     assert.equal(upstream.calls,cached);
   } finally { await upstream.close(); store.close(); }
 });
+test('IPv6-DNS eines VPN wird beantwortet',async()=>{
+  const udp=dgram.createSocket('udp6');
+  await new Promise((resolve,reject)=>udp.once('error',reject).bind(0,'::1',()=>{udp.removeListener('error',reject);resolve();}));
+  const port=udp.address().port;
+  udp.on('message',(raw,remote)=>{
+    const q=packet.decode(raw);
+    const data=packet.encode({type:'response',id:q.id,flags:packet.RECURSION_AVAILABLE,questions:q.questions,answers:[{name:q.questions[0].name,type:'A',ttl:30,data:'203.0.113.20'}]});
+    udp.send(data,remote.port,remote.address);
+  });
+  const store=new Store(':memory:');
+  const proxy=new DnsProxy({store,port:0,hosts:['127.0.0.1'],upstreamPort:port,timeout:500,cache:{maxEntries:0}});
+  proxy.upstream=()=>'192.0.2.1';
+  proxy.splitDns=()=>[{suffix:'corp.example',servers:['::1']}];
+  try {
+    assert.equal(proxy.serverFor('intranet.corp.example'),'::1');
+    const answer=packet.decode(await proxy.handle(packet.encode({type:'query',id:3,flags:packet.RECURSION_DESIRED,questions:[{name:'intranet.corp.example',type:'A'}]})));
+    assert.equal(answer.answers[0].data,'203.0.113.20');
+  } finally { await new Promise(r=>udp.close(r)); store.close(); }
+});
 test('Split-DNS: Namen unter dem VPN-Suffix gehen an den VPN-Server, Sperren gelten weiter',async()=>{
   const upstream=await mockUpstream();const store=new Store(':memory:');store.addRule('black','ads.corp.example');
   const proxy=new DnsProxy({store,port:0,hosts:['127.0.0.1'],upstreamPort:upstream.port,timeout:100});

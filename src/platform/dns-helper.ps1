@@ -28,12 +28,31 @@ function Get-ActiveAdapters {
 function Test-VpnAdapter($Adapter) {
     return [string]$Adapter.InterfaceDescription -match 'VPN|WireGuard|Wintun|TAP[- ]|AnyConnect|Fortinet|FortiSSL|GlobalProtect|PANGP|Juniper|Pulse Secure|SonicWall|Tailscale|ZeroTier|Tunnel'
 }
+# Virtual adapters that are not the PC's own internet path. A VPN match wins, so TAP stays included.
+function Test-IgnoredAdapter($Adapter) {
+    if (Test-VpnAdapter $Adapter) { return $false }
+    $text = "$($Adapter.Name) $($Adapter.InterfaceDescription) $($Adapter.Description)"
+    return $text -match 'Hyper-V|vEthernet|Docker|WSL|VirtualBox|VMware|Bluetooth|Teredo|isatap|6to4|Wi-Fi Direct|Mobile Hotspot|Kernel Debug|Npcap Loopback'
+}
+function Test-IgnoredRow($Row) {
+    if ($Row.Vpn) { return $false }
+    return (Test-IgnoredAdapter $Row)
+}
+function Test-HasForeignDns($Servers) {
+    return @($Servers | Where-Object { $_ -and $_ -ne '127.0.0.1' -and $_ -ne '::1' }).Count -gt 0
+}
+function Test-LocalServers($Servers) {
+    $list = @($Servers | Where-Object { $_ })
+    return $list.Count -gt 0 -and -not (Test-HasForeignDns $list)
+}
 function Get-Snapshot {
     $rows = @()
     foreach ($adapter in Get-ActiveAdapters) {
+        if (Test-IgnoredAdapter $adapter) { continue }
         # Only a VPN's suffix is used for split DNS; a suffix from any other network is ignored.
+        $vpn = [bool](Test-VpnAdapter $adapter)
         $suffix = ''
-        if (Test-VpnAdapter $adapter) {
+        if ($vpn) {
             $suffix = [string](@(Get-DnsClient -InterfaceIndex $adapter.ifIndex -ErrorAction SilentlyContinue | Where-Object { $_.ConnectionSpecificSuffix }) | Select-Object -First 1).ConnectionSpecificSuffix
         }
         foreach ($family in @('IPv4','IPv6')) {
@@ -41,7 +60,7 @@ function Get-Snapshot {
             $key = "HKLM:\SYSTEM\CurrentControlSet\Services\$regBase\Parameters\Interfaces\$($adapter.InterfaceGuid)"
             $static = (Get-ItemProperty -LiteralPath $key -Name NameServer -ErrorAction SilentlyContinue).NameServer
             $servers = @((Get-DnsClientServerAddress -InterfaceIndex $adapter.ifIndex -AddressFamily $family).ServerAddresses)
-            $rows += [pscustomobject]@{ Guid = [string]$adapter.InterfaceGuid; Index = $adapter.ifIndex; Name = $adapter.Name; Family = $family; Static = [bool]$static; Servers = $servers; Suffix = $suffix }
+            $rows += [pscustomobject]@{ Guid = [string]$adapter.InterfaceGuid; Index = $adapter.ifIndex; Name = $adapter.Name; Family = $family; Static = [bool]$static; Servers = $servers; Suffix = $suffix; Description = [string]$adapter.InterfaceDescription; Vpn = $vpn }
         }
     }
     return $rows
@@ -145,9 +164,33 @@ function Save-Backup($Rows) {
     [IO.File]::WriteAllText($temp, (ConvertTo-Json -InputObject @($Rows) -Depth 5))
     Move-Item -LiteralPath $temp -Destination $backupFile -Force
 }
-# Takes over adapters that came up while the protection is on (Wi-Fi, VPN, ...), without
-# touching adapters already in the backup: VPN software that sets DNS itself is not fought.
+# Takes over adapters that came up while protection is on (Wi-Fi, VPN, hotspot is ignored).
+# Adapters already in the backup are put back on the local resolver up to three times
+# when VPN software overwrites them, then left alone so the link does not flap.
 # Returns an error text, or an empty string.
+function Repair-ContestedDns($Already) {
+    if ($null -eq $script:dnsContest) { $script:dnsContest = @{} }
+    $messages = @()
+    foreach ($row in @(Get-Snapshot)) {
+        if (Test-IgnoredRow $row) { continue }
+        if (-not @($Already | Where-Object { $_.Guid -eq $row.Guid -and $_.Family -eq $row.Family }).Count) { continue }
+        $key = "$($row.Guid)|$($row.Family)"
+        if (-not (Test-HasForeignDns $row.Servers)) {
+            if ($script:dnsContest.ContainsKey($key)) { $script:dnsContest.Remove($key) }
+            continue
+        }
+        $n = 1 + [int]$script:dnsContest[$key]
+        $script:dnsContest[$key] = $n
+        if ($n -gt 3) {
+            $messages += "$($row.Name) ($($row.Family)) setzt DNS selbst zurück. Leise DNS hat es dreimal erneut auf den lokalen Dienst gestellt und belässt es jetzt, damit die Verbindung nicht flackert."
+            continue
+        }
+        $address = if ($row.Family -eq 'IPv4') {'127.0.0.1'} else {'::1'}
+        try { Invoke-Netsh @('interface',$row.Family.ToLowerInvariant(),'set','dnsservers',"name=$($row.Index)",'source=static',"address=$address",'validate=no') }
+        catch { $messages += "$($row.Name): $($_.Exception.Message)" }
+    }
+    return ($messages -join ' ')
+}
 function Sync-NewAdapters {
     if (!(Test-Path -LiteralPath $backupFile)) { return '' }
     # No @() around the pipeline: Windows PowerShell 5.1 would nest the JSON array.
@@ -158,39 +201,54 @@ function Sync-NewAdapters {
     $kept = @($saved | Where-Object { !$_.Adopted -or $existing -contains $_.Guid })
     $added = @()
     foreach ($row in @(Get-Snapshot)) {
+        if (Test-IgnoredRow $row) { continue }
         if (@($kept | Where-Object { $_.Guid -eq $row.Guid -and $_.Family -eq $row.Family }).Count) { continue }
-        if (@($row.Servers | Where-Object { $_ -eq '127.0.0.1' -or $_ -eq '::1' }).Count) { continue }
-        $row | Add-Member -NotePropertyName Adopted -NotePropertyValue $true
+        if (Test-LocalServers $row.Servers) { continue }
+        $row | Add-Member -NotePropertyName Adopted -NotePropertyValue $true -Force
         $added += $row
     }
-    if (!$added.Count) {
-        if ($kept.Count -ne $saved.Count) { Save-Backup $kept }
-        return ''
-    }
-    # Persist original state BEFORE touching any adapter.
-    Save-Backup ($kept + $added)
-    $failed = @(); $failures = @()
-    foreach ($row in $added) {
-        $address = if ($row.Family -eq 'IPv4') {'127.0.0.1'} else {'::1'}
-        try { Invoke-Netsh @('interface',$row.Family.ToLowerInvariant(),'set','dnsservers',"name=$($row.Index)",'source=static',"address=$address",'validate=no') }
-        catch { $failed += $row; $failures += "$($row.Name): $($_.Exception.Message)" }
-    }
-    if ($failed.Count) { Save-Backup ($kept + @($added | Where-Object { $failed -notcontains $_ })) }
-    Clear-DnsClientCache
-    return ($failures -join ' ')
+    $failures = @()
+    if ($added.Count) {
+        # Persist original state BEFORE touching any adapter.
+        Save-Backup ($kept + $added)
+        $failed = @()
+        foreach ($row in $added) {
+            $address = if ($row.Family -eq 'IPv4') {'127.0.0.1'} else {'::1'}
+            try { Invoke-Netsh @('interface',$row.Family.ToLowerInvariant(),'set','dnsservers',"name=$($row.Index)",'source=static',"address=$address",'validate=no') }
+            catch { $failed += $row; $failures += "$($row.Name): $($_.Exception.Message)" }
+        }
+        if ($failed.Count) { Save-Backup ($kept + @($added | Where-Object { $failed -notcontains $_ })) }
+        Clear-DnsClientCache
+    } elseif ($kept.Count -ne $saved.Count) { Save-Backup $kept }
+    $repair = Repair-ContestedDns $kept
+    $parts = @($failures)
+    if ($repair) { $parts += $repair }
+    return ($parts -join ' ')
 }
 # Domains under a connected VPN's DNS suffix, with the VPN's original DNS servers.
+# IPv4 is preferred. An IPv6-only VPN still gets a route; link-local addresses do not.
 function Get-SplitDns {
     if (!(Test-Path -LiteralPath $backupFile)) { return }
     $parsed = Get-Content -LiteralPath $backupFile -Raw | ConvertFrom-Json
     $up = @(Get-ActiveAdapters | ForEach-Object { [string]$_.InterfaceGuid })
+    $byGuid = @{}
     foreach ($row in @($parsed | ForEach-Object { $_ })) {
-        if ($row.Family -ne 'IPv4' -or !$row.Suffix -or $up -notcontains $row.Guid) { continue }
+        if (!$row.Suffix -or $up -notcontains $row.Guid) { continue }
         $suffix = ([string]$row.Suffix).ToLowerInvariant().TrimEnd('.')
         # A single public label such as "com" must never redirect every name to a VPN server.
         if ($suffix -notmatch '^[a-z0-9-]+(\.[a-z0-9-]+)+$|^(corp|lan|local|internal|intranet|home)$') { continue }
-        $servers = @($row.Servers | Where-Object { $_ -match '^\d{1,3}(\.\d{1,3}){3}$' -and $_ -ne '127.0.0.1' })
-        if ($servers.Count) { [pscustomobject]@{ suffix = $suffix; servers = $servers } }
+        if (-not $byGuid.ContainsKey([string]$row.Guid)) { $byGuid[[string]$row.Guid] = @{ suffix = $suffix; v4 = @(); v6 = @() } }
+        $bucket = $byGuid[[string]$row.Guid]
+        if ($row.Family -eq 'IPv4') {
+            $bucket.v4 = @($row.Servers | Where-Object { $_ -match '^\d{1,3}(\.\d{1,3}){3}$' -and $_ -ne '127.0.0.1' })
+        } else {
+            $bucket.v6 = @($row.Servers | Where-Object { $_ -match ':' -and $_ -ne '::1' -and $_ -notmatch '^(?i)fe80:' })
+        }
+    }
+    foreach ($key in @($byGuid.Keys)) {
+        $bucket = $byGuid[$key]
+        $servers = if (@($bucket.v4).Count) { @($bucket.v4) } else { @($bucket.v6) }
+        if (@($servers).Count) { [pscustomobject]@{ suffix = $bucket.suffix; servers = @($servers) } }
     }
 }
 if ($Inspect) {

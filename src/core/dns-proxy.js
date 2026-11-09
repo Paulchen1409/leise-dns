@@ -36,7 +36,7 @@ function forward(raw, server, tcp = false, port = 53, timeout = 4000) {
       socket.on('data',chunk=>{buffer=Buffer.concat([buffer,chunk]);if(buffer.length>=2 && buffer.length>=buffer.readUInt16BE(0)+2)accept(buffer.subarray(2,buffer.readUInt16BE(0)+2));});
       socket.on('end',()=>finish(new Error('DNS-Verbindung vorzeitig geschlossen.')));
     } else {
-      socket=dgram.createSocket('udp4'); socket.on('message',(data,remote)=>{if(remote.address===server && remote.port===port)accept(data);});
+      socket=dgram.createSocket(net.isIP(server)===6?'udp6':'udp4'); socket.on('message',(data,remote)=>{if(remote.address===server && remote.port===port)accept(data);});
       socket.send(outgoing,port,server,err=>{if(err)finish(err);});
     }
     socket.on('error',err=>finish(err));
