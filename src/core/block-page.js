@@ -42,31 +42,63 @@ function windowsCertStore() {
 }
 
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const EXPLAIN={
-  phishing:['Phishing','Diese Adresse steht auf einer Liste bekannter Phishing-Seiten. Solche Seiten geben sich zum Beispiel als Bank, Paketdienst oder Online-Shop aus, um Passwörter, Codes oder Zahlungsdaten abzugreifen.'],
-  malware:['Malware','Diese Adresse steht auf einer Liste von Seiten, die Schadsoftware verbreiten. Schon das Öffnen oder ein Download kann deinen PC mit Viren, Erpressungs- oder Spionagesoftware infizieren.']
+// The page follows the language chosen in the app (German by default).
+const PAGE={
+  de:{
+    phishing:['Phishing','Diese Adresse steht auf einer Liste bekannter Phishing-Seiten. Solche Seiten geben sich zum Beispiel als Bank, Paketdienst oder Online-Shop aus, um Passwörter, Codes oder Zahlungsdaten abzugreifen.'],
+    malware:['Malware','Diese Adresse steht auf einer Liste von Seiten, die Schadsoftware verbreiten. Schon das Öffnen oder ein Download kann deinen PC mit Viren, Erpressungs- oder Spionagesoftware infizieren.'],
+    preview:'Vorschau · ',kicker:'Leise DNS hat diese Seite gesperrt',heading:'Diese Seite wurde gesperrt',reason:'Grund',
+    source:list=>`Quelle: Filterliste „${list}“`,matched:entry=>` · Eintrag „${entry}“ gilt auch für Unterdomains`,
+    whyTitle:'Warum siehst du diese Seite?',
+    why:'Leise DNS schützt diesen PC, indem es jede Adresse prüft, bevor dein Browser eine Verbindung aufbaut. Diese Adresse ist als gefährlich bekannt. Deshalb hat Leise DNS die Anfrage zu dieser Hinweisseite auf deinem eigenen PC umgeleitet. Die eigentliche Seite wurde nicht geladen und hat keine Daten von dir erhalten.',
+    nextTitle:'Was du jetzt tun kannst',
+    next:['Schließe diesen Tab oder gehe zurück. Gib auf keinen Fall Passwörter oder Zahlungsdaten ein, falls du über einen Link hierher gekommen bist.',
+      'Kam der Link per E-Mail oder Nachricht, war er vermutlich gefälscht. Rufe die echte Seite lieber direkt über die Adresszeile oder ein Lesezeichen auf.',
+      'Hältst du die Sperre für einen Fehler? Öffne Leise DNS → <b>Anfragen</b> und wähle bei dieser Domain <b>Erlauben</b>. Aus Sicherheitsgründen lässt sich die Sperre nicht hier auf der Seite aufheben.'],
+    notBlocked:'Diese Adresse ist nicht gesperrt',
+    notBlockedText:domain=>`„${domain}“ wird von Leise DNS nicht (mehr) als gefährlich eingestuft. Lade die Seite in etwa einer Minute neu.`,
+    local:'Dies ist die lokale Hinweisseite von Leise DNS auf diesem PC.',
+    blocked:'Gesperrt',
+    footer:'Leise DNS · Lokaler DNS-Schutz nur auf diesem PC. Diese Seite stammt von deinem eigenen Computer, nicht aus dem Internet.'
+  },
+  en:{
+    phishing:['Phishing','This address is on a list of known phishing sites. Such sites pose as a bank, a parcel service or an online shop, for example, to steal passwords, codes or payment details.'],
+    malware:['Malware','This address is on a list of sites that spread malicious software. Just opening it or downloading something can infect your PC with viruses, ransomware or spyware.'],
+    preview:'Preview · ',kicker:'Leise DNS blocked this site',heading:'This site was blocked',reason:'Reason',
+    source:list=>`Source: filter list “${list}”`,matched:entry=>` · the entry “${entry}” also covers subdomains`,
+    whyTitle:'Why are you seeing this page?',
+    why:'Leise DNS protects this PC by checking every address before your browser connects. This address is known to be dangerous, so Leise DNS redirected the request to this notice page on your own PC. The actual site was not loaded and has not received any data from you.',
+    nextTitle:'What you can do now',
+    next:['Close this tab or go back. Do not enter any passwords or payment details if a link brought you here.',
+      'If the link came by email or message, it was probably fake. Open the real site directly from the address bar or a bookmark instead.',
+      'Think the block is a mistake? Open Leise DNS → <b>Queries</b> and choose <b>Allow</b> for this domain. For safety reasons the block cannot be lifted from this page.'],
+    notBlocked:'This address is not blocked',
+    notBlockedText:domain=>`Leise DNS does not (or no longer) consider “${domain}” dangerous. Reload the page in about a minute.`,
+    local:'This is the local Leise DNS notice page on this PC.',
+    blocked:'Blocked',
+    footer:'Leise DNS · Local DNS protection on this PC only. This page comes from your own computer, not from the internet.'
+  }
 };
 
-function renderPage({domain,threat,preview=false}) {
-  const [title,detail]=threat?EXPLAIN[threat.category]:['',''];
+function renderPage({domain,threat,preview=false,lang='de'}) {
+  const L=PAGE[lang==='en'?'en':'de'];
+  const [title,detail]=threat?L[threat.category]:['',''];
   const shield='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.2 19 6v5.6c0 4.5-3 7.8-7 9.2-4-1.4-7-4.7-7-9.2V6z"/><path d="M12 8.3v4.4M12 15.7v.02"/></svg>';
   const body=threat?`
     <div class="symbol">${shield}</div>
-    <p class="kicker">${preview?'Vorschau · ':''}Leise DNS hat diese Seite gesperrt</p>
-    <h1>Diese Seite wurde gesperrt</h1>
+    <p class="kicker">${preview?L.preview:''}${L.kicker}</p>
+    <h1>${L.heading}</h1>
     <p class="domain">${esc(domain)}</p>
-    <section class="reason"><span class="tag">Grund: ${title}</span><p>${detail}</p><p class="source">Quelle: Filterliste „${esc(threat.list)}“${threat.matched!==domain?` · Eintrag „${esc(threat.matched)}“ gilt auch für Unterdomains`:''}</p></section>
-    <h2>Warum siehst du diese Seite?</h2>
-    <p>Leise DNS schützt diesen PC, indem es jede Adresse prüft, bevor dein Browser eine Verbindung aufbaut. Diese Adresse ist als gefährlich bekannt. Deshalb hat Leise DNS die Anfrage zu dieser Hinweisseite auf deinem eigenen PC umgeleitet. Die eigentliche Seite wurde nicht geladen und hat keine Daten von dir erhalten.</p>
-    <h2>Was du jetzt tun kannst</h2>
-    <ul><li>Schließe diesen Tab oder gehe zurück. Gib auf keinen Fall Passwörter oder Zahlungsdaten ein, falls du über einen Link hierher gekommen bist.</li>
-    <li>Kam der Link per E-Mail oder Nachricht, war er vermutlich gefälscht. Rufe die echte Seite lieber direkt über die Adresszeile oder ein Lesezeichen auf.</li>
-    <li>Hältst du die Sperre für einen Fehler? Öffne Leise DNS → <b>Anfragen</b> und wähle bei dieser Domain <b>Erlauben</b>. Aus Sicherheitsgründen lässt sich die Sperre nicht hier auf der Seite aufheben.</li></ul>`:`
+    <section class="reason"><span class="tag">${L.reason}: ${title}</span><p>${detail}</p><p class="source">${L.source(esc(threat.list))}${threat.matched!==domain?L.matched(esc(threat.matched)):''}</p></section>
+    <h2>${L.whyTitle}</h2>
+    <p>${L.why}</p>
+    <h2>${L.nextTitle}</h2>
+    <ul>${L.next.map(item=>`<li>${item}</li>`).join('\n    ')}</ul>`:`
     <div class="symbol neutral">${shield}</div>
     <p class="kicker">Leise DNS</p>
-    <h1>Diese Adresse ist nicht gesperrt</h1>
-    <p>${domain?`„${esc(domain)}“ wird von Leise DNS nicht (mehr) als gefährlich eingestuft. Lade die Seite in etwa einer Minute neu.`:'Dies ist die lokale Hinweisseite von Leise DNS auf diesem PC.'}</p>`;
-  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${threat?'Gesperrt':'Leise DNS'} · Leise DNS</title><style>
+    <h1>${L.notBlocked}</h1>
+    <p>${domain?L.notBlockedText(esc(domain)):L.local}</p>`;
+  return `<!doctype html><html lang="${lang==='en'?'en':'de'}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${threat?L.blocked:'Leise DNS'} · Leise DNS</title><style>
 :root{color-scheme:dark;--red:#f0918f;--text:#f2f5f9;--text2:rgba(226,233,242,.76);--text3:rgba(214,223,234,.6)}
 *{box-sizing:border-box}html{min-height:100%;background:#0f141d}
 body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:32px 16px;color:var(--text);font:15px/1.6 "Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased;
@@ -86,7 +118,7 @@ h2{margin:26px 0 4px;font:600 17px/1.3 "Segoe UI Variable Display","Segoe UI",sy
 p,li{color:var(--text2)}ul{margin:6px 0 0;padding-left:20px}li{margin:6px 0}b{color:var(--text)}
 footer{margin-top:28px;padding-top:16px;border-top:1px solid rgba(255,255,255,.08);font-size:13px;color:var(--text3)}
 @media(max-width:520px){main{padding:28px 22px}h1{font-size:25px}}
-</style></head><body><main>${body}<footer>Leise DNS · Lokaler DNS-Schutz nur auf diesem PC. Diese Seite stammt von deinem eigenen Computer, nicht aus dem Internet.</footer></main></body></html>`;
+</style></head><body><main>${body}<footer>${L.footer}</footer></main></body></html>`;
 }
 
 class BlockPage {
@@ -112,7 +144,8 @@ class BlockPage {
     } else if(host!==this.address && /^[a-z0-9.-]+$/.test(host)) threat=this.store.threat(host);
     if(!threat && host===this.address)domain='';
     if(!/^[a-z0-9.-]*$/.test(domain))domain='';
-    const html=renderPage({domain,threat,preview});
+    let lang='de';try{lang=this.store.get?.('lang','de')==='en'?'en':'de';}catch{/* German */}
+    const html=renderPage({domain,threat,preview,lang});
     res.writeHead(threat && !preview?403:200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff',
       'Referrer-Policy':'no-referrer','X-Frame-Options':'DENY',"Content-Security-Policy":"default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"});
     res.end(req.method==='HEAD'?undefined:html);

@@ -4,10 +4,13 @@ const $ = s => document.querySelector(s);
 const $$ = s => document.querySelectorAll(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const icon = (name, cls) => Icons.svg(name, cls);
-const number = n => new Intl.NumberFormat('de-DE').format(n);
-const time = t => new Date(t).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-const day = t => new Date(t).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
-const date = t => new Date(t).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+const L = () => window.LeiseI18n.locale();
+const t = (key, vars) => window.LeiseI18n.t(key, vars);
+const te = message => window.LeiseI18n.te(message);
+const number = n => new Intl.NumberFormat(L()).format(n);
+const time = v => new Date(v).toLocaleTimeString(L(), { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+const day = v => new Date(v).toLocaleDateString(L(), { day: '2-digit', month: '2-digit' });
+const date = v => new Date(v).toLocaleString(L(), { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
 let snapshot, days = 1, chart, chartTitles = [], feed = true, page = 'dashboard';
 let toastTimer, refreshTimer, queryTimer, liveTimer;
@@ -32,7 +35,7 @@ function toast(message, error = false) {
   el.classList.remove('is-leaving');
   el.classList.toggle('is-error', error);
   el.setAttribute('aria-live', error ? 'assertive' : 'polite');
-  el.innerHTML = `${icon(error ? 'alert' : 'check')}<span>${esc(message)}</span>`;
+  el.innerHTML = `${icon(error ? 'alert' : 'check')}<span>${esc(error ? te(message) : message)}</span>`;
   el.hidden = false;
   toastTimer = setTimeout(() => {
     el.classList.add('is-leaving');
@@ -105,7 +108,7 @@ const pages = {
   black: ['nav.block', 'page.block.sub'],
   settings: ['nav.settings', 'page.settings.sub']
 };
-const tr = key => window.LeiseI18n ? window.LeiseI18n.t(key) : key;
+const tr = key => t(key);
 function route() {
   const previous = page;
   page = location.hash.slice(1);
@@ -166,12 +169,12 @@ function renderStatus(s) {
   toggle.setAttribute('aria-checked', String(d.toggle === 'on'));
   toggle.setAttribute('aria-busy', String(d.toggle === 'pending'));
   toggle.disabled = d.toggle === 'pending';
-  toggle.setAttribute('aria-label', d.toggle === 'on' ? 'DNS-Schutz ausschalten' : d.toggle === 'pending' ? d.title : 'DNS-Schutz einschalten');
-  $('#switch-caption').textContent = d.toggle === 'on' ? 'An' : d.toggle === 'pending' ? 'Bitte warten' : 'Aus';
+  toggle.setAttribute('aria-label', d.toggle === 'on' ? t('toggle.off') : d.toggle === 'pending' ? d.title : t('toggle.on'));
+  $('#switch-caption').textContent = d.toggle === 'on' ? t('switch.on') : d.toggle === 'pending' ? t('switch.wait') : t('switch.off');
 
   const errorBox = $('#status-error');
   errorBox.hidden = !d.error;
-  $('#status-error-text').textContent = d.error;
+  $('#status-error-text').textContent = te(d.error);
 
   const connection = $('#connection');
   connection.className = `status-text tone-${d.connection.tone}`;
@@ -198,25 +201,25 @@ function renderStatus(s) {
 
   press($('#upstream'), '[data-upstream]', b => b.dataset.upstream === s.upstream);
   const cacheNote = $('#cache-note');
-  if (cacheNote && s.cache) cacheNote.textContent = `Zwischenspeicher: ${number(s.cache.entries)} von ${number(s.cache.maxEntries)} Antworten, höchstens ${s.cache.maxTtl} Sekunden, ${number(s.cache.hits)} Treffer. Kürzere TTLs bleiben kürzer.`;
+  if (cacheNote && s.cache) cacheNote.textContent = t('up.cacheLive', { entries: number(s.cache.entries), max: number(s.cache.maxEntries), ttl: s.cache.maxTtl, hits: number(s.cache.hits) });
   const memoryNote = $('#metric-memory');
   if (memoryNote && s.memory) {
-    const mb = (s.memory.heapUsed / 1048576).toLocaleString('de-DE', { maximumFractionDigits: 1 });
-    memoryNote.textContent = `Ohne doppelte Einträge · ${mb} MB Arbeitsspeicher`;
+    const mb = (s.memory.heapUsed / 1048576).toLocaleString(L(), { maximumFractionDigits: 1 });
+    memoryNote.textContent = t('metric.memory', { mb });
   }
   const version = $('#app-version');
-  if (version && s.version) version.textContent = `Leise DNS · Version ${s.version}`;
+  if (version && s.version) version.textContent = t('app.version', { version: s.version });
   renderUpdate(s);
   $('#autostart-toggle').setAttribute('aria-checked', String(!!s.autostart));
   $('#autoupdate-toggle').setAttribute('aria-checked', String(!!s.autoUpdate));
   renderApproval(s);
   renderBlockPage(s);
 
-  if (changed('adapters', s.dns.adapters || [])) {
+  if (changed('adapters', [s.dns.adapters || [], window.LeiseI18n.lang()])) {
     const adapters = s.dns.adapters || [];
     $('#adapter-status').innerHTML = adapters.length
-      ? adapters.map(a => `<div class="adapter">${icon('network')}<span class="adapter-name">${esc(a.Name)}<small>${esc(a.Family)}</small></span><code>${esc((a.Servers || []).join(', ') || 'Automatisch')}</code></div>`).join('')
-      : empty('network', 'Noch kein Netzwerkadapter gefunden.', 'Mit „Status prüfen“ erneut nachsehen.');
+      ? adapters.map(a => `<div class="adapter">${icon('network')}<span class="adapter-name">${esc(a.Name)}<small>${esc(a.Family)}</small></span><code>${esc((a.Servers || []).join(', ') || t('adapter.auto'))}</code></div>`).join('')
+      : empty('network', t('adapter.none'), t('adapter.noneHint'));
   }
   renderGlobalError(s);
 }
@@ -230,19 +233,19 @@ function renderUpdate(s) {
   const info = s.update;
   if (!info) {
     status.className = 'approval-status status-text tone-neutral';
-    text.textContent = `Installiert ist ${s.version || ''}. Noch nicht geprüft.`;
+    text.textContent = s.version ? t('ver.installedNotChecked', { version: s.version }) : t('ver.notChecked');
     if (notes) notes.hidden = true;
     if (open) open.hidden = true;
     return;
   }
   if (info.updateAvailable) {
     status.className = 'approval-status status-text tone-warning';
-    text.textContent = `Version ${info.latest} ist verfügbar. Installiert ist ${info.current || s.version}.`;
+    text.textContent = t('ver.available', { latest: info.latest, current: info.current || s.version });
     if (notes) { notes.hidden = !info.notes; notes.textContent = info.notes || ''; }
     if (open) open.hidden = false;
   } else {
     status.className = 'approval-status status-text tone-success';
-    text.textContent = `Du hast die aktuelle Version ${info.current || s.version}.`;
+    text.textContent = t('ver.current', { version: info.current || s.version });
     if (notes) notes.hidden = true;
     if (open) open.hidden = true;
   }
@@ -255,19 +258,19 @@ function renderApproval(s) {
   toggle.setAttribute('aria-checked', String(!!a.remember));
   toggle.disabled = !!s.busy;
   const [tone, text] = a.remember
-    ? a.task === 'registered' ? ['success', 'Eingerichtet. Leise DNS schaltet den Schutz ohne Windows-Abfrage ein.']
-    : a.task === 'failed' ? ['warning', `Nicht eingerichtet: ${a.error || 'Unbekannter Fehler.'} Windows fragt weiterhin nach.`]
-    : a.task === 'unknown' ? ['neutral', 'Wird geprüft …']
-    : ['neutral', 'Wird beim nächsten Einschalten eingerichtet. Windows fragt dann ein letztes Mal nach.']
-    : a.task === 'registered' || a.task === 'removing' ? ['warning', 'Die Windows-Aufgabe wird entfernt, sobald der Schutz ausgeschaltet ist.']
-    : ['neutral', 'Aus. Windows fragt bei jedem Einschalten nach Administratorrechten.'];
+    ? a.task === 'registered' ? ['success', t('approval.registered')]
+    : a.task === 'failed' ? ['warning', t('approval.failed', { error: te(a.error) || t('approval.unknownError') })]
+    : a.task === 'unknown' ? ['neutral', t('checking')]
+    : ['neutral', t('approval.pending')]
+    : a.task === 'registered' || a.task === 'removing' ? ['warning', t('approval.removing')]
+    : ['neutral', t('approval.off')];
   $('#approval-status').className = `approval-status status-text tone-${tone}`;
   $('#approval-status-text').textContent = text;
 }
 
 function renderGlobalError(s) {
   $('#global-error').hidden = !s.error || page === 'dashboard';
-  $('#global-error-text').textContent = s.error || '';
+  $('#global-error-text').textContent = te(s.error);
 }
 
 /* ---------- Statistics & chart ---------- */
@@ -327,7 +330,7 @@ const gapBands = {
         c.ctx.font = '12px "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif';
         c.ctx.textAlign = 'center';
         c.ctx.textBaseline = 'middle';
-        c.ctx.fillText('Keine Daten', (from + to) / 2, (top + bottom) / 2);
+        c.ctx.fillText(t('chart.noData'), (from + to) / 2, (top + bottom) / 2);
       }
     }
     c.ctx.restore();
@@ -353,7 +356,7 @@ function createChart() {
   });
   chart = new Chart($('#traffic-chart'), {
     type: 'line',
-    data: { labels: [], datasets: [line('Blockiert', colors.blocked), line('Fehler', colors.error), line('Erlaubt', colors.allowed)] },
+    data: { labels: [], datasets: [line('blocked', colors.blocked), line('error', colors.error), line('allowed', colors.allowed)] },
     plugins: [gapBands, crosshair],
     options: {
       responsive: true, maintainAspectRatio: false, animation: false,
@@ -367,10 +370,10 @@ function createChart() {
           titleColor: '#f2f5f9', bodyColor: 'rgba(226,233,242,0.85)',
           titleFont: { size: 12.5, weight: '600' }, bodyFont: { size: 12.5 }, titleMarginBottom: 7, bodySpacing: 5,
           usePointStyle: true, boxWidth: 7, boxHeight: 7, boxPadding: 5,
-          itemSort: (a, b) => ['Erlaubt', 'Blockiert', 'Fehler'].indexOf(a.dataset.label) - ['Erlaubt', 'Blockiert', 'Fehler'].indexOf(b.dataset.label),
+          itemSort: (a, b) => ['allowed', 'blocked', 'error'].indexOf(a.dataset.label) - ['allowed', 'blocked', 'error'].indexOf(b.dataset.label),
           callbacks: {
             title: items => chartTitles[items[0]?.dataIndex] || '',
-            label: ctx => ` ${ctx.dataset.label}: ${number(ctx.parsed.y)}`,
+            label: ctx => ` ${t('q.' + ctx.dataset.label)}: ${number(ctx.parsed.y)}`,
             labelColor: ctx => ({ borderColor: ctx.dataset.borderColor, backgroundColor: ctx.dataset.borderColor, borderWidth: 0, borderRadius: 4 })
           }
         }
@@ -386,26 +389,26 @@ function createChart() {
 function renderStats(data, s) {
   $('#metric-total').textContent = number(data.total);
   $('#metric-blocked').textContent = number(data.blocked);
-  $('#metric-rate').innerHTML = `${data.rate.toLocaleString('de-DE', { maximumFractionDigits: 1 })}<span class="unit">%</span>`;
+  $('#metric-rate').innerHTML = `${data.rate.toLocaleString(L(), { maximumFractionDigits: 1 })}<span class="unit">%</span>`;
   $('#rate-meter').style.width = `${Math.min(100, data.rate)}%`;
   $('#metric-domains').textContent = number(s.domainCount);
-  $('#stats-range-label').textContent = days === 1 ? 'Dein Tag in Zahlen' : `Die letzten ${days} Tage`;
+  $('#stats-range-label').textContent = days === 1 ? t('stats.today') : t('stats.days', { days });
   // Longer ranges are grouped into 3 h / 12 h buckets so the lines stay readable.
   const bucket = days === 1 ? 1 : days === 7 ? 3 : 12;
   const groups = chartGroups(data.history, bucket);
   const gaps = data.total === 0 ? [] : gapRanges(groups);
-  const range = days === 1 ? 'Pro Stunde, heute' : `Je ${bucket} Stunden, letzte ${days} Tage`;
-  $('#chart-sub').textContent = gaps.length ? `${range} · Lücken: PC oder Schutz war aus` : range;
+  const range = days === 1 ? t('chart.hourly') : t('chart.bucket', { bucket, days });
+  $('#chart-sub').textContent = gaps.length ? t('chart.gaps', { range }) : range;
   $('#legend-allowed').textContent = number(data.total - data.blocked - data.errors);
   $('#legend-blocked').textContent = number(data.blocked);
   $('#legend-error').textContent = number(data.errors);
 
-  if (window.Chart && changed('chart', [days, data.history])) {
+  if (window.Chart && changed('chart', [days, data.history, window.LeiseI18n.lang()])) {
     if (!chart) createChart();
     chartGaps = gaps;
-    const hour = t => new Date(t).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-    chart.data.labels = groups.map(g => days === 1 ? hour(g.time) : `${day(g.time)}, ${new Date(g.time).getHours()} Uhr`);
-    chartTitles = groups.map(g => days === 1 ? `${hour(g.time)}–${hour(g.time + 3600000)} Uhr` : `${day(g.time)}, ${hour(g.time)}–${hour(g.time + bucket * 3600000)} Uhr`);
+    const hour = v => new Date(v).toLocaleTimeString(L(), { hour: '2-digit', minute: '2-digit' });
+    chart.data.labels = groups.map(g => days === 1 ? hour(g.time) : t('chart.dayHour', { day: day(g.time), hour: new Date(g.time).getHours() }));
+    chartTitles = groups.map(g => days === 1 ? t('chart.span', { from: hour(g.time), to: hour(g.time + 3600000) }) : t('chart.daySpan', { day: day(g.time), from: hour(g.time), to: hour(g.time + bucket * 3600000) }));
     // null leaves a gap in the line; hours without data are not "0 blocked".
     chart.data.datasets[0].data = groups.map(g => g.noData ? null : g.blocked);
     chart.data.datasets[1].data = groups.map(g => g.noData ? null : g.errors);
@@ -416,43 +419,45 @@ function renderStats(data, s) {
   $('#chart-empty').hidden = !noData;
   $('.chart-wrap').classList.toggle('is-empty', noData);
 
-  if (changed('top', data.top)) {
+  if (changed('top', [data.top, window.LeiseI18n.lang()])) {
     const max = Math.max(1, ...data.top.map(r => r.count));
     $('#top-domains').innerHTML = data.top.length
       ? `<ol class="top-list">${data.top.map((r, i) => `<li class="top-item"><span class="top-rank">${i + 1}</span><span class="top-domain" title="${esc(r.domain)}">${esc(r.domain)}</span><span class="top-count">${number(r.count)}</span><span class="top-bar"><span data-share="${r.count / max}"></span></span></li>`).join('')}</ol>`
-      : empty('block', 'Noch nichts blockiert.', 'Die häufigsten gesperrten Domains erscheinen hier.');
+      : empty('block', t('top.empty'), t('top.emptyHint'));
     $$('#top-domains [data-share]').forEach(el => { el.style.width = `${Math.max(2, Number(el.dataset.share) * 100)}%`; });
   }
 }
 
 /* ---------- Query tables ---------- */
 const STATUS = {
-  blocked: ['is-blocked', 'block', 'Blockiert'],
-  error: ['is-error', 'alert', 'Fehler'],
-  allowed: ['is-allowed', 'allow', 'Erlaubt']
+  blocked: ['is-blocked', 'block', 'q.blocked'],
+  error: ['is-error', 'alert', 'q.error'],
+  allowed: ['is-allowed', 'allow', 'q.allowed']
 };
 // Malware/phishing blocks carry "Phishing · <Liste>" as reason.
 const threatOf = r => r.status === 'blocked' ? (/^(Phishing|Malware) · /.exec(r.reason || '') || [])[1] || null : null;
 function queryRow(r, full) {
   const threat = threatOf(r);
-  const [cls, symbol, label] = threat ? ['is-threat', 'shield-alert', threat] : STATUS[r.status] || STATUS.allowed;
-  const detail = [r.domain, r.type, r.reason].filter(Boolean).join(' · ');
+  const [cls, symbol, labelKey] = threat ? ['is-threat', 'shield-alert', null] : STATUS[r.status] || STATUS.allowed;
+  const label = threat || t(labelKey);
+  const reason = te(r.reason);
+  const detail = [r.domain, r.type, reason].filter(Boolean).join(' · ');
   const act = r.status === 'blocked'
-    ? `<button class="btn btn-sm row-action" data-rule-domain="${esc(r.domain)}" data-rule-kind="white"${threat ? ` data-threat="${threat}"` : ''} aria-label="${esc(r.domain)} erlauben">${icon('allow')}Erlauben</button>`
-    : `<button class="btn btn-sm row-action" data-rule-domain="${esc(r.domain)}" data-rule-kind="black" aria-label="${esc(r.domain)} sperren">${icon('block')}Sperren</button>`;
+    ? `<button class="btn btn-sm row-action" data-rule-domain="${esc(r.domain)}" data-rule-kind="white"${threat ? ` data-threat="${threat}"` : ''} aria-label="${esc(t('query.allowAria', { domain: r.domain }))}">${icon('allow')}${t('query.allow')}</button>`
+    : `<button class="btn btn-sm row-action" data-rule-domain="${esc(r.domain)}" data-rule-kind="black" aria-label="${esc(t('query.blockAria', { domain: r.domain }))}">${icon('block')}${t('query.block')}</button>`;
   return `<tr data-id="${r.id}"><td class="cell-time" title="${esc(date(r.time))}">${time(r.time)}${full ? `<small>${day(r.time)}</small>` : ''}</td>`
     + `<td class="cell-domain" title="${esc(detail)}">${esc(r.domain)}${full && r.type ? `<span class="domain-type">${esc(r.type)}</span>` : ''}</td>`
-    + `<td><span class="status-text ${cls}" title="${esc(r.reason || label)}">${icon(symbol, 'icon-sm')}${label}</span></td>`
+    + `<td><span class="status-text ${cls}" title="${esc(reason || label)}">${icon(symbol, 'icon-sm')}${label}</span></td>`
     + `${full ? `<td class="cell-action">${act}</td>` : ''}</tr>`;
 }
 function table(rows, full = false) {
   if (!rows.length) {
     return full
-      ? empty('search', 'Keine passenden Anfragen.', 'Ändere Suche oder Filter oder warte auf neue Anfragen.')
-      : empty('activity', 'Hier ist es noch ganz ruhig.', 'Nach der Einrichtung erscheinen hier echte DNS-Anfragen dieses PCs.');
+      ? empty('search', t('queries.none'), t('queries.noneHint'))
+      : empty('activity', t('recent.none'), t('recent.noneHint'));
   }
   return `<table class="data-table"><colgroup><col class="col-time"><col><col class="col-status">${full ? '<col class="col-action">' : ''}</colgroup>`
-    + `<thead><tr><th scope="col">Zeit</th><th scope="col">Domain</th><th scope="col">Status</th>${full ? '<th scope="col"><span class="sr-only">Direkte Aktion</span></th>' : ''}</tr></thead>`
+    + `<thead><tr><th scope="col">${t('table.time')}</th><th scope="col">${t('table.domain')}</th><th scope="col">${t('table.status')}</th>${full ? `<th scope="col"><span class="sr-only">${t('table.action')}</span></th>` : ''}</tr></thead>`
     + `<tbody>${rows.map(r => queryRow(r, full)).join('')}</tbody></table>`;
 }
 
@@ -487,36 +492,36 @@ async function loadQueries({ reset = false } = {}) {
 function updateNewPill() {
   const pill = $('#new-queries');
   pill.hidden = newCount === 0 || page !== 'queries';
-  $('#new-queries-text').textContent = newCount === 1 ? '1 neue Anfrage' : `${number(newCount)} neue Anfragen`;
+  $('#new-queries-text').textContent = newCount === 1 ? t('queries.newOne') : t('queries.newMany', { count: number(newCount) });
 }
 
 /* ---------- Filter lists ---------- */
 function filterCard(l) {
   const state = l.busy
-    ? `<span class="status-text tone-info"><span class="spinner"></span>Wird aktualisiert …</span>`
-    : l.error ? `<span class="status-text tone-danger">${icon('alert')}Letztes Update fehlgeschlagen</span>`
-    : l.enabled ? `<span class="status-text tone-success"><span class="dot"></span>Aktiv</span>`
-    : `<span class="status-text tone-neutral"><span class="dot"></span>Ausgeschaltet</span>`;
+    ? `<span class="status-text tone-info"><span class="spinner"></span>${t('list.updating')}</span>`
+    : l.error ? `<span class="status-text tone-danger">${icon('alert')}${t('list.failed')}</span>`
+    : l.enabled ? `<span class="status-text tone-success"><span class="dot"></span>${t('list.active')}</span>`
+    : `<span class="status-text tone-neutral"><span class="dot"></span>${t('list.off')}</span>`;
   const coverage = l.rules > 0
-    ? `${number(l.used)} von ${number(l.rules)} Regeln genutzt (${Math.round(100 * l.used / l.rules)} %). ${number(l.skipped)} übersprungen: Pfade, Ausnahmen, kosmetische Filter und Regeln, die nur auf bestimmten Seiten gelten.`
-    : (l.skipped ? `${number(l.skipped)} nicht nutzbare Einträge übersprungen.` : '');
-  const detail = (l.error ? `<div class="callout callout-danger" role="alert">${icon('alert')}<span class="callout-text">${esc(l.error)}</span></div>` : '')
+    ? t('list.coverage', { used: number(l.used), rules: number(l.rules), pct: Math.round(100 * l.used / l.rules), skipped: number(l.skipped) })
+    : (l.skipped ? t('list.skippedOnly', { skipped: number(l.skipped) }) : '');
+  const detail = (l.error ? `<div class="callout callout-danger" role="alert">${icon('alert')}<span class="callout-text">${esc(te(l.error))}</span></div>` : '')
     + (coverage ? `<p class="skipped-note">${coverage}</p>` : '');
   return `<article class="filter-card${l.enabled ? '' : ' is-off'}" aria-label="${esc(l.name)}">
     <div class="filter-icon">${icon('layers')}</div>
-    <div class="filter-main"><div class="filter-title"><h3 title="${esc(l.name)}">${esc(l.name)}</h3></div><div class="filter-sub">${l.preset ? `<span class="tag${l.category === 'ads' ? '' : ' tag-danger'}">${{ malware: 'Malware-Schutz', phishing: 'Phishing-Schutz' }[l.category] || 'Werbung & Tracker'}</span>` : '<span class="tag">Eigene Liste</span>'}<span class="filter-url" title="${esc(l.url)}">${esc(l.url)}</span></div></div>
-    <div class="filter-count"><strong>${number(l.count)}</strong><span>Domains</span></div>
-    <div class="filter-state">${state}<span class="sub">${l.updated ? 'Aktualisiert ' + date(l.updated) : 'Noch nicht geladen'}</span></div>
+    <div class="filter-main"><div class="filter-title"><h3 title="${esc(l.name)}">${esc(l.name)}</h3></div><div class="filter-sub">${l.preset ? `<span class="tag${l.category === 'ads' ? '' : ' tag-danger'}">${esc(t({ malware: 'list.cat.malware', phishing: 'list.cat.phishing' }[l.category] || 'list.cat.ads'))}</span>` : `<span class="tag">${t('list.own')}</span>`}<span class="filter-url" title="${esc(l.url)}">${esc(l.url)}</span></div></div>
+    <div class="filter-count"><strong>${number(l.count)}</strong><span>${t('list.domains')}</span></div>
+    <div class="filter-state">${state}<span class="sub">${l.updated ? t('list.updated', { date: date(l.updated) }) : t('list.notLoaded')}</span></div>
     <div class="filter-actions">
-      <button class="btn btn-sm btn-update" data-list-update="${esc(l.id)}" ${l.busy ? 'disabled aria-busy="true"' : ''} aria-label="${esc(l.name)} aktualisieren">${l.busy ? '<span class="spinner"></span>' : icon('refresh')}<span class="label">${l.busy ? 'Lädt …' : 'Aktualisieren'}</span></button>
-      ${l.preset ? '<span class="btn-slot" aria-hidden="true"></span>' : `<button class="btn btn-sm btn-danger btn-icon-sm" data-list-remove="${esc(l.id)}" ${l.busy ? 'disabled' : ''} aria-label="${esc(l.name)} löschen" title="Liste löschen">${icon('trash')}</button>`}
+      <button class="btn btn-sm btn-update" data-list-update="${esc(l.id)}" ${l.busy ? 'disabled aria-busy="true"' : ''} aria-label="${esc(t('list.updateAria', { name: l.name }))}">${l.busy ? '<span class="spinner"></span>' : icon('refresh')}<span class="label">${l.busy ? t('list.loading') : t('list.update')}</span></button>
+      ${l.preset ? '<span class="btn-slot" aria-hidden="true"></span>' : `<button class="btn btn-sm btn-danger btn-icon-sm" data-list-remove="${esc(l.id)}" ${l.busy ? 'disabled' : ''} aria-label="${esc(t('list.removeAria', { name: l.name }))}" title="${t('list.remove')}">${icon('trash')}</button>`}
     </div>
-    <button class="switch switch-sm filter-toggle" role="switch" aria-checked="${Boolean(l.enabled)}" aria-label="${esc(l.name)} verwenden" data-list-toggle="${esc(l.id)}"><span class="switch-track-fill"></span><span class="switch-knob"><span class="spinner"></span></span></button>
+    <button class="switch switch-sm filter-toggle" role="switch" aria-checked="${Boolean(l.enabled)}" aria-label="${esc(t('list.useAria', { name: l.name }))}" data-list-toggle="${esc(l.id)}"><span class="switch-track-fill"></span><span class="switch-knob"><span class="spinner"></span></span></button>
     <div class="filter-detail">${detail}</div>
   </article>`;
 }
 function renderFilters(lists) {
-  if (!changed('lists', lists)) return;
+  if (!changed('lists', [lists, window.LeiseI18n.lang()])) return;
   const focused = document.activeElement?.closest('.filter-card') && ['listToggle', 'listUpdate', 'listRemove'].find(k => document.activeElement.dataset[k]);
   const focusId = focused && document.activeElement.dataset[focused];
   $('#filter-lists').innerHTML = lists.map(filterCard).join('');
@@ -526,46 +531,44 @@ function renderFilters(lists) {
 function showFormError(form, message) {
   const box = form.querySelector('.field-error');
   box.hidden = !message;
-  box.innerHTML = message ? `${icon('alert')}<span>${esc(message)}</span>` : '';
+  box.innerHTML = message ? `${icon('alert')}<span>${esc(te(message))}</span>` : '';
 }
 
 /* ---------- Allowed / blocked domains ---------- */
+// Texts come from i18n.js; keys are 'rules.<kind>.<field>'.
 const RULES = {
-  white: {
-    symbol: 'allow', tone: 'tone-success', title: 'Domain erlauben', button: 'Erlauben', done: 'Domain erlaubt.',
-    intro: 'Erlaubte Domains werden nie blockiert, auch wenn sie in einer Filterliste oder bei den gesperrten Domains stehen.',
-    none: 'Noch keine erlaubten Domains.', search: 'Erlaubte Domains durchsuchen'
-  },
-  black: {
-    symbol: 'block', tone: 'tone-danger', title: 'Domain sperren', button: 'Sperren', done: 'Domain gesperrt.',
-    intro: 'Gesperrte Domains werden zusätzlich zu den Filterlisten blockiert. Eine erlaubte übergeordnete Domain hat weiterhin Vorrang.',
-    none: 'Noch keine eigenen Sperren.', search: 'Gesperrte Domains durchsuchen'
-  }
+  white: { symbol: 'allow', tone: 'tone-success', nav: 'nav.allow' },
+  black: { symbol: 'block', tone: 'tone-danger', nav: 'nav.block' }
 };
+const ruleText = (kind, field) => t(`rules.${kind}.${field}`);
 function initRules(kind) {
   const r = RULES[kind];
+  const typed = $(`#${kind}-content input[name="domain"]`)?.value || '';
+  const searched = $(`#search-${kind}`)?.value || '';
   $(`#${kind}-content`).innerHTML = `
     <article class="content panel form-panel ${r.tone}">
-      <header class="rule-intro"><span class="rule-symbol">${icon(r.symbol)}</span><div><h2 class="panel-title">${r.title}</h2><p class="panel-sub">${r.intro}</p></div></header>
+      <header class="rule-intro"><span class="rule-symbol">${icon(r.symbol)}</span><div><h2 class="panel-title">${ruleText(kind, 'title')}</h2><p class="panel-sub">${ruleText(kind, 'intro')}</p></div></header>
       <form class="form-grid" id="add-${kind}" novalidate>
-        <label class="form-label grow">Domain<span class="field">${icon('globe')}<input name="domain" required maxlength="253" placeholder="zum-beispiel.de" autocomplete="off" spellcheck="false" aria-describedby="hint-${kind} error-${kind}"></span></label>
-        <button type="submit" class="btn btn-accent">${icon('plus')}<span>${r.button}</span></button>
+        <label class="form-label grow">${t('rules.domain')}<span class="field">${icon('globe')}<input name="domain" required maxlength="253" placeholder="${esc(t('rules.placeholder'))}" autocomplete="off" spellcheck="false" aria-describedby="hint-${kind} error-${kind}"></span></label>
+        <button type="submit" class="btn btn-accent">${icon('plus')}<span>${ruleText(kind, 'button')}</span></button>
         <p class="field-error form-error" id="error-${kind}" role="alert" hidden></p>
       </form>
-      <p class="field-hint" id="hint-${kind}">Ohne https:// und ohne Seitenpfad. Unterdomains sind eingeschlossen: „example.com“ gilt auch für „a.example.com“. Steht dieselbe Domain in der anderen Liste, wird sie hierher verschoben.</p>
+      <p class="field-hint" id="hint-${kind}">${esc(t('rules.hint'))}</p>
     </article>
-    <section class="content panel rule-panel ${r.tone}" aria-label="${r.search.replace(' durchsuchen', '')}">
+    <section class="content panel rule-panel ${r.tone}" aria-label="${esc(t(r.nav))}">
       <header class="rule-toolbar">
-        <label class="field field-pill">${icon('search')}<input id="search-${kind}" type="search" placeholder="Durchsuchen" aria-label="${r.search}" autocomplete="off" spellcheck="false"></label>
+        <label class="field field-pill">${icon('search')}<input id="search-${kind}" type="search" placeholder="${esc(t('rules.searchPh'))}" aria-label="${esc(ruleText(kind, 'search'))}" autocomplete="off" spellcheck="false"></label>
         <span class="rule-count num" id="count-${kind}" aria-live="polite"></span>
       </header>
       <div class="rule-list" id="rules-${kind}"></div>
     </section>`;
   const form = $(`#add-${kind}`);
+  form.elements.domain.value = typed;
+  $(`#search-${kind}`).value = searched;
   form.addEventListener('submit', e => {
     e.preventDefault();
     const input = form.elements.domain;
-    if (!input.value.trim()) { showFormError(form, 'Bitte eine Domain eingeben, zum Beispiel „werbung.example.com“.'); input.closest('.field').classList.add('is-invalid'); input.focus(); return; }
+    if (!input.value.trim()) { showFormError(form, t('rules.required')); input.closest('.field').classList.add('is-invalid'); input.focus(); return; }
     quietly(action(e.submitter, async () => {
       try {
         lastAdded[kind] = await api.call('rule:add', { kind, domain: input.value });
@@ -577,7 +580,7 @@ function initRules(kind) {
       input.value = '';
       showFormError(form, '');
       input.closest('.field').classList.remove('is-invalid');
-    }, r.done));
+    }, ruleText(kind, 'done')));
   });
   form.elements.domain.addEventListener('input', () => { form.elements.domain.closest('.field').classList.remove('is-invalid'); showFormError(form, ''); });
   $(`#search-${kind}`).addEventListener('input', () => renderRules(kind, true));
@@ -587,13 +590,14 @@ function renderRules(kind, force = false) {
   const all = snapshot[kind];
   if (!changed('rules-' + kind, [all, search]) && !force && !lastAdded[kind]) return;
   const rows = all.filter(d => d.includes(search));
-  $(`#count-${kind}`).textContent = search ? `${number(rows.length)} von ${number(all.length)} Domains` : `${number(all.length)} ${all.length === 1 ? 'Domain' : 'Domains'}`;
+  $(`#count-${kind}`).textContent = search ? t('rules.countFiltered', { shown: number(rows.length), total: number(all.length) })
+    : all.length === 1 ? t('rules.countOne') : t('rules.countMany', { count: number(all.length) });
   const focusIndex = [...$$(`#rules-${kind} [data-remove-domain]`)].indexOf(document.activeElement);
   const r = RULES[kind];
   $(`#rules-${kind}`).innerHTML = rows.length
-    ? rows.map(d => `<div class="rule-item${d === lastAdded[kind] ? ' is-new' : ''}">${icon(r.symbol)}<span class="rule-domain" title="${esc(d)}">${esc(d)}<small>inkl. Unterdomains</small></span><button class="btn btn-sm btn-quiet" data-remove-domain="${esc(d)}" data-kind="${kind}" aria-label="${esc(d)} entfernen">${icon('close')}Entfernen</button></div>`).join('')
-    : search ? empty('search', 'Keine passende Domain.', 'Versuche einen anderen Suchbegriff.')
-    : empty(r.symbol, r.none, 'Füge oben eine Domain hinzu oder nutze eine direkte Aktion im Anfragen-Log.');
+    ? rows.map(d => `<div class="rule-item${d === lastAdded[kind] ? ' is-new' : ''}">${icon(r.symbol)}<span class="rule-domain" title="${esc(d)}">${esc(d)}<small>${t('rules.sub')}</small></span><button class="btn btn-sm btn-quiet" data-remove-domain="${esc(d)}" data-kind="${kind}" aria-label="${esc(t('rules.removeAria', { domain: d }))}">${icon('close')}${t('rules.remove')}</button></div>`).join('')
+    : search ? empty('search', t('rules.noMatch'), t('rules.noMatchHint'))
+    : empty(r.symbol, ruleText(kind, 'none'), t('rules.emptyHint'));
   lastAdded[kind] = null;
   if (focusIndex >= 0) {
     const buttons = $$(`#rules-${kind} [data-remove-domain]`);
@@ -625,7 +629,7 @@ function modeAction(button, kind) {
   pendingMode = kind;
   if (['5', '30'].includes(kind)) pauseChoice = kind;
   if (snapshot) renderStatus({ ...snapshot.status, busy: true });
-  const done = kind === 'active' ? 'Schutz eingeschaltet.' : kind === 'off' ? 'Schutz ausgeschaltet. Windows-DNS zurückgesetzt.' : 'Schutz pausiert. Windows-DNS zurückgesetzt.';
+  const done = kind === 'active' ? t('toast.on') : kind === 'off' ? t('toast.off') : t('toast.paused');
   return quietly(action(button, () => api.call('mode', { kind }), done)).finally(() => {
     pendingMode = null;
     if (snapshot) renderStatus(snapshot.status);
@@ -647,45 +651,64 @@ document.addEventListener('click', e => {
     press($('#query-status'), '[data-status]', x => x === b);
     loadQueries({ reset: true }).catch(err => toast(err.message, true));
   }
-  if (b.dataset.upstream) quietly(action(b, () => api.call('upstream', { value: b.dataset.upstream }), 'DNS-Anbieter gespeichert.'));
+  if (b.dataset.upstream) quietly(action(b, () => api.call('upstream', { value: b.dataset.upstream }), t('toast.upstream')));
   if (b.dataset.value && b.closest('[data-pref]')) {
     prefs.set(b.closest('[data-pref]').dataset.pref, b.dataset.value);
   }
   if (b.dataset.lang) {
     window.LeiseI18n.setLang(b.dataset.lang);
-    press($('#language'), '[data-lang]', x => x.dataset.lang === window.LeiseI18n.lang());
-    rendered.clear();
-    route();
-    if (snapshot) { renderStatus(snapshot.status); renderFilters(snapshot.lists); renderRules('white', true); renderRules('black', true); }
+    quietly(api.call('lang:set', { lang: window.LeiseI18n.lang() }));
   }
   if (b.dataset.listToggle) {
     const l = snapshot.lists.find(x => x.id === b.dataset.listToggle);
     b.setAttribute('aria-checked', String(!l.enabled));
-    quietly(action(b, () => api.call('list:toggle', { id: l.id, enabled: !l.enabled }), l.enabled ? `${l.name} ausgeschaltet.` : `${l.name} eingeschaltet.`));
+    quietly(action(b, () => api.call('list:toggle', { id: l.id, enabled: !l.enabled }), t(l.enabled ? 'toast.listOff' : 'toast.listOn', { name: l.name })));
   }
   if (b.dataset.listUpdate) {
     const l = snapshot.lists.find(x => x.id === b.dataset.listUpdate);
     renderFilters(snapshot.lists.map(x => x.id === l.id ? { ...x, busy: true } : x));
-    quietly(action(null, () => api.call('list:update', { id: l.id }), `${l.name} aktualisiert.`));
+    quietly(action(null, () => api.call('list:update', { id: l.id }), t('toast.listUpdated', { name: l.name })));
   }
   if (b.dataset.listRemove) {
     const l = snapshot.lists.find(x => x.id === b.dataset.listRemove);
-    confirmDialog({ title: 'Filterliste löschen?', text: `„${l.name}“ und die enthaltenen Domainregeln werden entfernt. Das lässt sich nicht rückgängig machen.`, confirm: 'Liste löschen' })
-      .then(ok => ok && quietly(action(b, () => api.call('list:remove', { id: l.id }), 'Filterliste gelöscht.')));
+    confirmDialog({ title: t('dialog.removeList.title'), text: t('dialog.removeList.text', { name: l.name }), confirm: t('list.remove') })
+      .then(ok => ok && quietly(action(b, () => api.call('list:remove', { id: l.id }), t('toast.listRemoved'))));
   }
   if (b.dataset.preview) quietly(api.call('blockpage:preview', { category: b.dataset.preview }).catch(err => { toast(err.message, true); throw err; }));
   if (b.dataset.help) quietly(api.call('help:open', { id: b.dataset.help }).catch(err => { toast(err.message, true); throw err; }));
   if (b.dataset.ruleDomain) allowOrBlock(b);
-  if (b.dataset.removeDomain) quietly(action(b, () => api.call('rule:remove', { kind: b.dataset.kind, domain: b.dataset.removeDomain }), 'Eintrag entfernt.'));
+  if (b.dataset.removeDomain) quietly(action(b, () => api.call('rule:remove', { kind: b.dataset.kind, domain: b.dataset.removeDomain }), t('toast.ruleRemoved')));
+});
+
+// Switching the language re-renders everything that was built from texts.
+document.documentElement.addEventListener('leise-lang', () => {
+  press($('#language'), '[data-lang]', x => x.dataset.lang === window.LeiseI18n.lang());
+  rendered.clear();
+  initRules('white');
+  initRules('black');
+  $('#feed-toggle').innerHTML = feed ? `${icon('pause')}<span>${t('feed.pause')}</span>` : `${icon('play')}<span>${t('feed.resume')}</span>`;
+  $('#feed-label-text').textContent = feed ? t('live') : t('feed.paused');
+  $('#today').textContent = new Date().toLocaleDateString(L(), { weekday: 'long', day: 'numeric', month: 'long' });
+  route();
+  if (snapshot) {
+    renderStatus(snapshot.status);
+    renderStats(snapshot.stats, snapshot.status);
+    renderFilters(snapshot.lists);
+    renderRules('white', true);
+    renderRules('black', true);
+    updateNewPill();
+  }
+  refresh().catch(e => toast(e.message, true));
+  if (page === 'queries') loadQueries({ reset: true }).catch(e => toast(e.message, true));
 });
 
 // Allowing a known malware/phishing domain needs an explicit second confirmation.
 async function allowOrBlock(b) {
   const kind = b.dataset.ruleKind;
-  if (b.dataset.threat && !(await confirmDialog({ title: `${b.dataset.threat}-Seite erlauben?`, symbol: 'shield-alert',
-    text: `${b.dataset.ruleDomain} steht auf einer Liste bekannter ${b.dataset.threat}-Seiten. Erlaube sie nur, wenn du sicher bist, dass die Sperre ein Fehler ist.`, confirm: 'Trotzdem erlauben' }))) return;
+  if (b.dataset.threat && !(await confirmDialog({ title: t('dialog.threat.title', { threat: b.dataset.threat }), symbol: 'shield-alert',
+    text: t('dialog.threat.text', { domain: b.dataset.ruleDomain, threat: b.dataset.threat }), confirm: t('dialog.threat.confirm') }))) return;
   quietly(action(b, async () => { lastAdded[kind] = await api.call('rule:add', { kind, domain: b.dataset.ruleDomain }); },
-    kind === 'white' ? `${b.dataset.ruleDomain} ist jetzt erlaubt.` : `${b.dataset.ruleDomain} ist jetzt gesperrt.`));
+    t(kind === 'white' ? 'toast.allowed' : 'toast.blocked', { domain: b.dataset.ruleDomain })));
 }
 
 // Generic confirmation dialog (glass); resolves true only on the confirm button.
@@ -718,19 +741,19 @@ function confirmDialog({ title, text, confirm, symbol = 'trash', danger = true, 
 function renderBlockPage(s) {
   const b = s.blockPage;
   const toggle = $('#blockpage-https-toggle');
-  if (!b) { $('#blockpage-status-text').textContent = 'Nicht verfügbar.'; toggle.disabled = true; return; }
-  const [tone, text] = b.running ? ['success', `Aktiv. Die Hinweisseite läuft lokal unter ${b.address}.`] : ['warning', b.error || 'Die Sperrseite läuft nicht.'];
+  if (!b) { $('#blockpage-status-text').textContent = t('bp.unavailable'); toggle.disabled = true; return; }
+  const [tone, text] = b.running ? ['success', t('bp.running', { address: b.address })] : ['warning', te(b.error) || t('bp.notRunning')];
   $('#blockpage-status').className = `approval-status status-text tone-${tone}`;
   $('#blockpage-status-text').textContent = text;
   const h = b.https;
   toggle.setAttribute('aria-checked', String(h.enabled || h.installed));
   toggle.dataset.state = h.busy ? 'pending' : '';
   toggle.disabled = h.busy || !b.running;
-  const until = h.expires ? new Date(h.expires).toLocaleDateString('de-DE') : '';
-  const [htone, htext] = h.busy ? ['info', 'Warte auf die Windows-Abfrage …']
-    : h.error ? ['warning', h.error]
-    : h.enabled ? ['success', `Aktiv. Zertifikat installiert (nur dein Windows-Konto), gültig bis ${until}.`]
-    : ['neutral', 'Aus. Bei https-Seiten zeigt der Browser nur eine Fehlermeldung.'];
+  const until = h.expires ? new Date(h.expires).toLocaleDateString(L()) : '';
+  const [htone, htext] = h.busy ? ['info', t('bp.waiting')]
+    : h.error ? ['warning', te(h.error)]
+    : h.enabled ? ['success', t('bp.httpsOn', { date: until })]
+    : ['neutral', t('bp.httpsOff')];
   $('#blockpage-https-status').className = `approval-status status-text tone-${htone}`;
   $('#blockpage-https-status-text').textContent = htext;
   const box = $('#blockpage-conflict');
@@ -740,23 +763,21 @@ function renderBlockPage(s) {
     if (conflict) {
       const title = $('#blockpage-conflict-title');
       const steps = $('#blockpage-conflict-steps');
-      if (title) title.textContent = conflict.summary;
-      if (steps) steps.innerHTML = (conflict.steps || []).map(step => `<li>${esc(step)}</li>`).join('');
+      if (title) title.textContent = te(conflict.summary);
+      if (steps) steps.innerHTML = (conflict.steps || []).map(step => `<li>${esc(te(step))}</li>`).join('');
     }
   }
   document.querySelectorAll('[data-preview]').forEach(x => { x.disabled = !b.running; });
 }
 
 $('#blockpage-https-toggle').addEventListener('click', async e => {
-  const t = e.currentTarget;
-  const enable = t.getAttribute('aria-checked') !== 'true';
+  const toggle = e.currentTarget;
+  const enable = toggle.getAttribute('aria-checked') !== 'true';
   const ok = enable
-    ? await confirmDialog({ title: 'Stammzertifikat installieren?', symbol: 'lock', danger: false, confirm: 'Weiter zu Windows',
-        acknowledge: 'Ich verstehe, dass der Schlüssel auf diesem PC liegt und nur für mein Windows-Konto installiert wird.',
-        text: 'Leise DNS erstellt ein eigenes Stammzertifikat, damit Browser die Hinweisseite auch bei https-Seiten anzeigen. Windows fragt gleich, ob du es installieren möchtest – bestätige mit „Ja“. Wichtig: Wer den Schlüssel von deinem PC stehlen könnte, könnte damit Webseiten fälschen. Er liegt deshalb verschlüsselt und nur für dein Konto lesbar auf diesem PC. Ausschalten entfernt das Zertifikat wieder.' })
-    : await confirmDialog({ title: 'Zertifikat entfernen?', confirm: 'Entfernen',
-        text: 'Windows fragt gleich, ob das Leise-DNS-Zertifikat gelöscht werden soll – bestätige mit „Ja“. Danach zeigen gesperrte https-Seiten wieder nur eine Fehlermeldung.' });
-  if (ok) quietly(action(t, () => api.call('blockpage:https', { enabled: enable }), enable ? 'Sperrseite für https eingeschaltet.' : 'Zertifikat entfernt.'));
+    ? await confirmDialog({ title: t('dialog.cert.title'), symbol: 'lock', danger: false, confirm: t('dialog.cert.confirm'),
+        acknowledge: t('dialog.cert.ack'), text: t('dialog.cert.text') })
+    : await confirmDialog({ title: t('dialog.uncert.title'), confirm: t('dialog.uncert.confirm'), text: t('dialog.uncert.text') });
+  if (ok) quietly(action(toggle, () => api.call('blockpage:https', { enabled: enable }), enable ? t('toast.httpsOn') : t('toast.certRemoved')));
 });
 
 $('#main-toggle').addEventListener('click', e => modeAction(e.currentTarget, snapshot?.status.active ? 'off' : 'active'));
@@ -764,7 +785,7 @@ $('#setup-button').addEventListener('click', e => modeAction(e.currentTarget, e.
 $('#update-all').addEventListener('click', e => quietly(action(e.currentTarget, async () => {
   const results = await api.call('list:updateAll');
   const failed = results.filter(r => !r.ok);
-  toast(failed.length ? `${failed.length} ${failed.length === 1 ? 'Liste konnte' : 'Listen konnten'} nicht aktualisiert werden. Details stehen bei den Listen.` : 'Alle Filterlisten aktualisiert.', !!failed.length);
+  toast(failed.length === 1 ? t('toast.updateFailedOne') : failed.length ? t('toast.updateFailedMany', { count: failed.length }) : t('toast.updatedAll'), !!failed.length);
 })));
 
 $('#add-list').addEventListener('submit', e => {
@@ -772,15 +793,15 @@ $('#add-list').addEventListener('submit', e => {
   const form = e.target;
   const { name, url } = form.elements;
   [name, url].forEach(i => i.closest('.field').classList.remove('is-invalid'));
-  const invalid = !name.value.trim() ? [name, 'Bitte einen Namen für die Liste eingeben.']
-    : !/^https:\/\/\S+\.\S+/i.test(url.value.trim()) ? [url, 'Bitte eine vollständige HTTPS-Adresse eingeben, zum Beispiel https://example.com/domains.txt.'] : null;
+  const invalid = !name.value.trim() ? [name, t('toast.listNameRequired')]
+    : !/^https:\/\/\S+\.\S+/i.test(url.value.trim()) ? [url, t('toast.listUrlRequired')] : null;
   if (invalid) { invalid[0].closest('.field').classList.add('is-invalid'); showFormError(form, invalid[1]); invalid[0].focus(); return; }
   quietly(action(e.submitter, async () => {
     try { await api.call('list:add', { name: name.value, url: url.value.trim() }); }
     catch (err) { showFormError(form, err.message); throw err; }
     form.reset();
     showFormError(form, '');
-  }, 'Filterliste hinzugefügt. Mit „Aktualisieren“ werden die Domains geladen.'));
+  }, t('toast.listAdded')));
 });
 $('#add-list').addEventListener('input', e => { e.target.closest('.field')?.classList.remove('is-invalid'); });
 $('#add-list').addEventListener('reset', e => { e.target.querySelectorAll('.is-invalid').forEach(f => f.classList.remove('is-invalid')); showFormError(e.target, ''); });
@@ -788,39 +809,39 @@ $('#add-list').addEventListener('reset', e => { e.target.querySelectorAll('.is-i
 $('#autoupdate-toggle').addEventListener('click', e => {
   const enabled = e.currentTarget.getAttribute('aria-checked') !== 'true';
   e.currentTarget.setAttribute('aria-checked', String(enabled));
-  quietly(action(e.currentTarget, () => api.call('autoupdate:set', { enabled }), enabled ? 'Filterlisten werden ab jetzt täglich aktualisiert.' : 'Automatische Updates ausgeschaltet.'));
+  quietly(action(e.currentTarget, () => api.call('autoupdate:set', { enabled }), enabled ? t('toast.autoOn') : t('toast.autoOff')));
 });
 $('#autostart-toggle').addEventListener('click', e => {
   const enabled = e.currentTarget.getAttribute('aria-checked') !== 'true';
   e.currentTarget.setAttribute('aria-checked', String(enabled));
-  quietly(action(e.currentTarget, () => api.call('autostart:set', { enabled }), enabled ? 'Leise DNS startet ab jetzt mit Windows.' : 'Autostart ausgeschaltet.'));
+  quietly(action(e.currentTarget, () => api.call('autostart:set', { enabled }), enabled ? t('toast.startOn') : t('toast.startOff')));
 });
 $('#approval-toggle').addEventListener('click', e => {
   const remember = e.currentTarget.getAttribute('aria-checked') !== 'true';
   e.currentTarget.setAttribute('aria-checked', String(remember));
-  quietly(action(e.currentTarget, () => api.call('approval:set', { remember }), remember ? 'Die Freigabe wird beim nächsten Einschalten gespeichert.' : 'Windows fragt wieder bei jedem Einschalten.'));
+  quietly(action(e.currentTarget, () => api.call('approval:set', { remember }), remember ? t('toast.approvalOn') : t('toast.approvalOff')));
 });
-$('#check-dns').addEventListener('click', e => quietly(action(e.currentTarget, () => api.call('dns:inspect'), 'DNS-Status geprüft.')));
+$('#check-dns').addEventListener('click', e => quietly(action(e.currentTarget, () => api.call('dns:inspect'), t('toast.dnsChecked'))));
 $('#check-update').addEventListener('click', e => quietly(action(e.currentTarget, async () => {
   const info = await api.call('update:check');
-  toast(info.updateAvailable ? `Version ${info.latest} ist verfügbar. Die Notizen stehen in den Einstellungen.` : 'Du hast die aktuelle Version.');
+  toast(info.updateAvailable ? t('toast.updateAvailable', { version: info.latest }) : t('toast.upToDate'));
 })));
 $('#open-update')?.addEventListener('click', () => quietly(api.call('update:open').catch(err => { toast(err.message, true); throw err; })));
 $('#export-rules')?.addEventListener('click', e => quietly(action(e.currentTarget, async () => {
   const result = await api.call('rules:export');
-  if (!result.canceled) toast(`${result.count} Regeln gespeichert.`);
+  if (!result.canceled) toast(t('toast.rulesSaved', { count: number(result.count) }));
 })));
 $('#import-rules')?.addEventListener('click', async () => {
   try {
     const picked = await api.call('rules:pick');
     if (picked.canceled) return;
     const choice = await confirmDialog({
-      title: 'Sicherung laden?', symbol: 'list', danger: false, confirm: 'Zusammenführen', alt: 'Ersetzen',
-      text: `Die Datei enthält ${picked.white} erlaubte und ${picked.black} gesperrte Domains. Zusammenführen behält, was schon da ist, und eine erlaubte Domain gewinnt. Ersetzen löscht die bisherigen eigenen Regeln.`
+      title: t('dialog.import.title'), symbol: 'list', danger: false, confirm: t('dialog.merge'), alt: t('dialog.replace'),
+      text: t('dialog.import.text', { white: number(picked.white), black: number(picked.black) })
     });
     if (!choice) return;
     const result = await api.call('rules:apply', { mode: choice === 'alt' ? 'replace' : 'merge' });
-    toast(result.mode === 'replace' ? 'Regeln ersetzt.' : 'Regeln zusammengeführt.');
+    toast(result.mode === 'replace' ? t('toast.rulesReplaced') : t('toast.rulesMerged'));
     await refresh();
   } catch (err) { toast(err.message, true); }
 });
@@ -834,12 +855,12 @@ function showBypassHint(visible) {
 $('#bypass-close').addEventListener('click', () => {
   try { localStorage.setItem(BYPASS_KEY, '1'); } catch { /* still hidden for this session */ }
   showBypassHint(false);
-  toast('Hinweis ausgeblendet. Unter Einstellungen → Gut zu wissen lässt er sich wieder anzeigen.');
+  toast(t('toast.hintHidden'));
 });
 $('#bypass-show').addEventListener('click', () => {
   try { localStorage.removeItem(BYPASS_KEY); } catch { /* ignore */ }
   showBypassHint(true);
-  toast('Hinweis wird auf der Übersicht wieder angezeigt.');
+  toast(t('toast.hintShown'));
 });
 try { showBypassHint(localStorage.getItem(BYPASS_KEY) !== '1'); } catch { showBypassHint(true); }
 $('#query-search').addEventListener('input', () => {
@@ -848,7 +869,7 @@ $('#query-search').addEventListener('input', () => {
 });
 async function exportQueries(format) {
   const result = await api.call('queries:export', { format, search: $('#query-search').value, status: queryStatus });
-  if (!result.canceled) toast(`${number(result.count)} Anfragen als ${format.toUpperCase()} gespeichert.`);
+  if (!result.canceled) toast(t('toast.exported', { count: number(result.count), format: format.toUpperCase() }));
 }
 $('#export-csv')?.addEventListener('click', e => quietly(action(e.currentTarget, () => exportQueries('csv'))));
 $('#export-json')?.addEventListener('click', e => quietly(action(e.currentTarget, () => exportQueries('json'))));
@@ -856,9 +877,9 @@ $('#feed-toggle').addEventListener('click', e => {
   feed = !feed;
   const b = e.currentTarget;
   b.setAttribute('aria-pressed', String(!feed));
-  b.innerHTML = feed ? `${icon('pause')}<span>Anhalten</span>` : `${icon('play')}<span>Fortsetzen</span>`;
+  b.innerHTML = feed ? `${icon('pause')}<span>${t('feed.pause')}</span>` : `${icon('play')}<span>${t('feed.resume')}</span>`;
   $('#feed-label').classList.toggle('is-paused', !feed);
-  $('#feed-label-text').textContent = feed ? 'Live' : 'Angehalten';
+  $('#feed-label-text').textContent = feed ? t('live') : t('feed.paused');
   if (feed) loadQueries({ reset: true }).catch(err => toast(err.message, true));
 });
 $('#new-queries').addEventListener('click', () => {
@@ -889,7 +910,9 @@ Icons.hydrate();
 prefs.watch();
 window.LeiseI18n.apply();
 press($('#language'), '[data-lang]', b => b.dataset.lang === window.LeiseI18n.lang());
-$('#today').textContent = new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
+$('#today').textContent = new Date().toLocaleDateString(L(), { weekday: 'long', day: 'numeric', month: 'long' });
+// The tray menu and the block page follow the language chosen here.
+quietly(api.call('lang:set', { lang: window.LeiseI18n.lang() }));
 initRules('white');
 initRules('black');
 window.addEventListener('hashchange', route);

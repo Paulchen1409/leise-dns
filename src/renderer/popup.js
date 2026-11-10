@@ -5,7 +5,7 @@ let status, pending = null, pauseChoice = null, lastIcon = '';
 
 function showError(message) {
   $('#popup-error').hidden = !message;
-  $('#popup-error-text').textContent = message || '';
+  $('#popup-error-text').textContent = window.LeiseI18n ? window.LeiseI18n.te(message) : (message || '');
 }
 
 function render(s) {
@@ -28,7 +28,7 @@ function render(s) {
   toggle.dataset.state = d.toggle;
   toggle.setAttribute('aria-checked', String(d.toggle === 'on'));
   toggle.setAttribute('aria-busy', String(d.toggle === 'pending'));
-  toggle.setAttribute('aria-label', d.toggle === 'on' ? 'Schutz ausschalten' : 'Schutz einschalten');
+  toggle.setAttribute('aria-label', d.toggle === 'on' ? tr('popup.toggleOff') : tr('popup.toggleOn'));
   toggle.disabled = !!s.busy;
 
   let current = null;
@@ -46,6 +46,8 @@ function render(s) {
 async function update() {
   try {
     status = (await window.leise.call('snapshot')).status;
+    // Fallback if the storage event from the dashboard did not arrive.
+    if (document.documentElement.lang !== window.LeiseI18n.lang()) { window.LeiseI18n.apply(); document.title = tr('popup.title'); lastIcon = ''; }
     render(status);
   } catch (e) { showError(e.message); }
 }
@@ -61,6 +63,14 @@ async function mode(kind) {
 
 Icons.hydrate();
 prefs.watch();
+window.LeiseI18n.apply();
+document.title = tr('popup.title');
+// The language is chosen in the dashboard; follow it right away.
+document.documentElement.addEventListener('leise-lang', () => {
+  document.title = tr('popup.title');
+  lastIcon = '';
+  if (status) render(status);
+});
 $('#popup-toggle').addEventListener('click', () => mode(status?.active ? 'off' : 'active'));
 document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => mode(b.dataset.mode)));
 $('#open').addEventListener('click', () => window.leise.call('window:open'));

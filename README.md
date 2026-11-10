@@ -6,7 +6,7 @@ Ein lokaler DNS-Adblocker für **diesen Windows-PC**. Electron, Vanilla JavaScri
 
 `Start-LeiseDNS.cmd` doppelklicken. Alternativ `dist/win-unpacked/Leise DNS.exe` starten; dafür muss der ganze Ordner `win-unpacked` zusammenbleiben. Der aktuelle Installer liegt unter [Releases](https://github.com/Paulchen1409/leise-dns/releases) (lokal gebaut unter `dist/`). Er ist nicht signiert. Windows SmartScreen warnt deshalb; die Schritte stehen in [docs/smartscreen-und-signierung.md](docs/smartscreen-und-signierung.md).
 
-Version 0.7.0 prüft unter Einstellungen, ob es auf GitHub eine neuere Version gibt, und zeigt die Änderungsnotizen. Installiert wird nichts automatisch. Die Versionszeile in der Seitenleiste kommt aus der App selbst.
+Leise DNS prüft unter Einstellungen, ob es auf GitHub eine neuere Version gibt, und zeigt die Änderungsnotizen. Installiert wird nichts automatisch. Die Versionszeile in der Seitenleiste kommt aus der App selbst.
 
 Version 0.1.2 korrigiert das Einlesen der DNS-Sicherung unter Windows PowerShell 5.1. Eine zusätzliche Array-Klammer fasste IPv4 und IPv6 versehentlich zusammen und verursachte die Meldung „Netzwerkadapter Ethernet Ethernet ist nicht verfügbar“. Ein neuer Test prüft die echte Wiederherstellungsfunktion mit simulierten Adaptern: DHCP, statische Serverreihenfolge, geänderte Adapterindizes und den Erhalt der Sicherung bei fehlenden Adaptern. Alle 13 Tests bestehen. Die vorhandene DNS-Sicherung auf dem Entwicklungs-PC wurde mit dem korrigierten Skript erfolgreich wiederhergestellt; die erledigte Boot-Aufgabe wurde entfernt und der DNS-Status anschließend geprüft.
 
@@ -108,7 +108,7 @@ Die Schutzfarbe liegt als Licht *hinter* der Statusfläche und wird vom Glas wei
 
 **Query-Log:** Neue Einträge werden einzeln oben eingefügt. Wer weiter unten liest, bleibt exakt an seiner Position; ein Hinweis „N neue Anfragen“ führt zurück nach oben.
 
-Die Oberfläche ist auf Deutsch. Unter Einstellungen → Darstellung schaltet „English“ die Navigation, die Seitentitel, den Schutzstatus und den Hinweis zu verschlüsseltem DNS um. Die Wahl gilt nur für dieses Gerät. Deutsch bleibt die Voreinstellung, auch ohne gespeicherte Wahl. Die Oberfläche lädt keine Schriftarten, Skripte oder Statistikdienste aus dem Internet. Electron verwendet isolierte Renderer ohne Node-Zugriff, Sandbox und eine begrenzte IPC-Schnittstelle; die Content Security Policy blieb unverändert streng (keine Inline-Skripte oder -Styles).
+Die Oberfläche ist auf Deutsch. Unter Einstellungen → Darstellung schaltet „English“ die gesamte Oberfläche um: Dashboard, Tray-Fenster und Tray-Menü, Dialoge, Meldungen des Dienstes und die Sperrseite im Browser. Die Wahl gilt nur für dieses Gerät. Deutsch bleibt die Voreinstellung, auch ohne gespeicherte Wahl. Die Oberfläche lädt keine Schriftarten, Skripte oder Statistikdienste aus dem Internet. Electron verwendet isolierte Renderer ohne Node-Zugriff, Sandbox und eine begrenzte IPC-Schnittstelle; die Content Security Policy blieb unverändert streng (keine Inline-Skripte oder -Styles).
 
 ## 3a. Sperrseite für Malware und Phishing
 

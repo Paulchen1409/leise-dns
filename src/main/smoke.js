@@ -3,6 +3,7 @@
 // Nothing here touches the user's database or Windows DNS settings.
 const fs=require('node:fs');
 const path=require('node:path');
+const http=require('node:http');
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 const {BrowserWindow}=require('electron');
 
@@ -64,7 +65,7 @@ const STATES=(()=>{
     approval:{...base,busy:true,helper:false},
     unreachable:{...base,running:false,error:'listen EACCES: permission denied 127.0.0.1:53'},
     failed:{...base,error:'DNS-Hilfsdienst wurde vorzeitig beendet (Code 1). Die Windows-Freigabe wurde abgebrochen oder der Hilfsprozess konnte nicht starten.'},
-    'restore-failed':{...base,mode:{kind:'off'},error:'Netzwerkadapter „Ethernet“ ist nicht verfügbar. Die Sicherung bleibt erhalten und wird beim nächsten Versuch verwendet.'}
+    'restore-failed':{...base,mode:{kind:'off'},error:'Netzwerkadapter Ethernet ist nicht verfügbar.'}
   };
 })();
 
@@ -197,7 +198,42 @@ async function run({main,popup,service,root}) {
   for(const modifiers of [[],['shift']])main.webContents.sendInputEvent({type:'keyDown',keyCode:'Tab',modifiers}),main.webContents.sendInputEvent({type:'keyUp',keyCode:'Tab',modifiers});
   await wait(300);await shot('focus-visible');
 
-  const report={...result,ui,hero,popupSize,frame,blockpage,anchoring:{before:anchoring,after,stable:Math.abs(anchoring-after)<2},motion,audits};
+  // 7. English: every page, every protection state, the popup and the block page must be free of German.
+  const GERMAN=String.raw`[äöüßÄÖÜ„]|\b(und|oder|nicht|der|die|das|ist|wird|werden|Schutz|Anfragen?|Einstellungen|Uhr|Domains? (?:erlauben|sperren)|Liste|Seite|Fehler|Erlaubt|Blockiert|Gesperrt|Aktualisier\w*|Eigene|Noch|Bitte)\b`;
+  const scan=code=>`(()=>{const re=new RegExp(${JSON.stringify(GERMAN)});const hits=[];
+    const visible=el=>!!(el.offsetWidth||el.offsetHeight||el.getClientRects().length);
+    for(const line of document.body.innerText.split('\\n'))if(re.test(line))hits.push(line.trim());
+    for(const el of document.querySelectorAll('[aria-label],[title],[placeholder]'))if(visible(el))for(const a of ['aria-label','title','placeholder']){const v=el.getAttribute(a);if(v && re.test(v))hits.push(a+': '+v);}
+    if(re.test(document.title))hits.push('title: '+document.title);
+    ${code||''}
+    // List names are user data and stay as entered.
+    return [...new Set(hits)].filter(h=>!/^(Phishing Army|StevenBlack|URLhaus|EasyList|EasyPrivacy)$/.test(h) && !h.includes('Eigene Testliste'));})()`;
+  await js(`document.querySelector('[data-lang="en"]').click()`);await wait(900);
+  const english={};
+  await size(1280,900);
+  for(const p of pages){await go(p,p==='dashboard'?700:450);await shot(`en-${p}`);english[p]=await js(scan());audits[`en-${p}-1280x900`]=await js(AUDIT);}
+  await size(880,650);
+  for(const p of pages){await go(p,450);audits[`en-${p}-880x650`]=await js(AUDIT);}
+  await size(1280,900);await go('dashboard',600);
+  popup.setPosition(40,40);popup.showInactive();await wait(700);
+  for(const [name,s] of Object.entries(STATES)) {
+    await js(`renderStatus(${JSON.stringify(s)})`);await js(`render(${JSON.stringify(s)})`,popup);await wait(300);
+    english[`state-${name}`]=await js(scan());english[`popup-${name}`]=await js(scan(),popup);
+    if(['active','paused-timed','failed'].includes(name)){await shot(`en-state-${name}`);await shot(`en-popup-${name}`,popup);}
+  }
+  popup.hide();
+  await js(`document.querySelector('[data-lang="de"]').click()`);await wait(400);
+  await js(`document.querySelector('[data-lang="en"]').click()`);await wait(400);
+  const pageEn=await new Promise((resolve,reject)=>http.get('http://127.53.0.1:15380/__leise/vorschau?kategorie=phishing',res=>{let b='';res.setEncoding('utf8');res.on('data',c=>b+=c);res.on('end',()=>resolve(b));}).on('error',reject));
+  if(!/This site was blocked/.test(pageEn))english.blockpage=['Block page is not English'];
+  english.tray=service.store.get('lang','de')==='en'?[]:['Tray language not stored'];
+  await js(`document.querySelector('[data-lang="de"]').click()`);await wait(600);
+  const germanAgain=await js(`document.querySelector('#page-title').textContent`);
+  const untranslated=Object.entries(english).filter(([,v])=>v.length);
+  if(untranslated.length)throw new Error('Englisch unvollständig: '+JSON.stringify(Object.fromEntries(untranslated),null,1));
+  if(germanAgain!=='Filterlisten' && germanAgain!=='Übersicht' && germanAgain!=='Einstellungen')throw new Error('Zurück auf Deutsch fehlgeschlagen: '+germanAgain);
+
+  const report={...result,ui,hero,popupSize,frame,blockpage,anchoring:{before:anchoring,after,stable:Math.abs(anchoring-after)<2},motion,english:Object.keys(english).length,audits};
   fs.writeFileSync(path.join(out,'smoke.json'),JSON.stringify(report,null,2));
   fs.copyFileSync(path.join(shots,'dashboard-1280x900.png'),path.join(out,'dashboard.png'));
   fs.copyFileSync(path.join(shots,'filters-1280x900.png'),path.join(out,'filters.png'));

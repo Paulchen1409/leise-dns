@@ -17,7 +17,7 @@ if(smoke)app.setPath('userData',path.join(smokeRoot,'.test-data/electron'));
 const gotLock=app.requestSingleInstanceLock();
 if(!gotLock){app.quit();}else{
   app.on('second-instance',()=>openDashboard());
-  app.whenReady().then(start).catch(e=>{if(smoke)console.error(e);else dialog.showErrorBox('Leise DNS konnte nicht starten',e.message);app.exit(1);});
+  app.whenReady().then(start).catch(e=>{if(smoke)console.error(e);else dialog.showErrorBox(text('startFailed'),e.message);app.exit(1);});
 }
 function windowOptions(extra={}) {return {backgroundColor:'#0e121a',icon:path.join(__dirname,'../../assets/icon.ico'),autoHideMenuBar:true,webPreferences:{preload:path.join(__dirname,'preload.js'),contextIsolation:true,nodeIntegration:false,sandbox:true},...extra};}
 function protect(win) {win.webContents.setWindowOpenHandler(()=>({action:'deny'}));win.webContents.on('will-navigate',e=>e.preventDefault());}
@@ -34,6 +34,19 @@ function loginItem() {return {path:process.execPath,args:app.isPackaged?['--auto
 function autostartEnabled() {return smoke?smokeAutostart:app.getLoginItemSettings(loginItem()).openAtLogin;}
 function setAutostart(enabled) {if(smoke)smokeAutostart=enabled;else app.setLoginItemSettings({openAtLogin:enabled,...loginItem()});}
 function openDashboard() {if(!main)return;popup?.hide();main.show();if(main.isMinimized())main.restore();main.focus();}
+// Texts of the main process (tray menu, system dialogs). The dashboard reports the chosen language.
+const TEXT={
+  de:{active:'Schutz aktiv',inactive:'Schutz nicht aktiv',open:'Dashboard öffnen',pause5:'5 Minuten pausieren',on:'Schutz einschalten',quit:'Beenden und DNS zurücksetzen',
+    dnsSetting:'DNS-Einstellung',startFailed:'Leise DNS konnte nicht starten',waitQuit:'Bitte die laufende DNS-Änderung abwarten und danach erneut beenden.',
+    resetFailed:'DNS konnte noch nicht zurückgesetzt werden',resetFailedHint:'Die App bleibt geöffnet, damit dein DNS-Dienst weiterläuft. Bitte erneut versuchen.',
+    rulesFile:'leise-dns-regeln.json',queriesFile:'leise-dns-anfragen'},
+  en:{active:'Protection on',inactive:'Protection off',open:'Open dashboard',pause5:'Pause for 5 minutes',on:'Turn protection on',quit:'Quit and restore DNS',
+    dnsSetting:'DNS setting',startFailed:'Leise DNS could not start',waitQuit:'Please wait for the current DNS change to finish, then quit again.',
+    resetFailed:'DNS could not be restored yet',resetFailedHint:'The app stays open so your DNS service keeps running. Please try again.',
+    rulesFile:'leise-dns-rules.json',queriesFile:'leise-dns-queries'}
+};
+const lang=()=>{try{return service?.store.get('lang','de')==='en'?'en':'de';}catch{return 'de';}};
+const text=key=>TEXT[lang()][key];
 // Tray: the app mark in mint while protection is active, graphite otherwise.
 // Electron picks the @1.5x/@2x files for higher display scaling automatically.
 const trayIcons={};
@@ -42,8 +55,8 @@ function icon(active) {
   return trayIcons[name]??=nativeImage.createFromPath(path.join(__dirname,'../../assets',name+'.png'));
 }
 function updateTray() {
-  if(!tray)return;const s=service.status();tray.setImage(icon(s.active));tray.setToolTip(`Leise DNS · ${s.active?'Schutz aktiv':'Schutz nicht aktiv'}`);
-  tray.setContextMenu(Menu.buildFromTemplate([{label:'Dashboard öffnen',click:openDashboard},{label:s.active?'5 Minuten pausieren':'Schutz einschalten',enabled:!s.busy,click:()=>service.setMode(s.active?'5':'active').catch(e=>dialog.showErrorBox('DNS-Einstellung',e.message))},{type:'separator'},{label:'Beenden und DNS zurücksetzen',click:()=>app.quit()}]));
+  if(!tray)return;const s=service.status();tray.setImage(icon(s.active));tray.setToolTip(`Leise DNS · ${s.active?text('active'):text('inactive')}`);
+  tray.setContextMenu(Menu.buildFromTemplate([{label:text('open'),click:openDashboard},{label:s.active?text('pause5'):text('on'),enabled:!s.busy,click:()=>service.setMode(s.active?'5':'active').catch(e=>dialog.showErrorBox(text('dnsSetting'),e.message))},{type:'separator'},{label:text('quit'),click:()=>app.quit()}]));
 }
 async function start() {
   if(smoke)console.log('Smoke: App bereit');
@@ -64,6 +77,11 @@ async function start() {
     if(![main.webContents,popup.webContents].includes(event.sender) || event.senderFrame!==event.sender.mainFrame)return {ok:false,error:'Zugriff verweigert.'};
     try {
       if(action==='window:open'){openDashboard();return {ok:true};}
+      if(action==='lang:set'){
+        const next=args?.lang==='en'?'en':'de';
+        if(service.store.get('lang','de')!==next){service.store.set('lang',next);updateTray();send('leise:changed');}
+        return {ok:true};
+      }
       if(action==='help:open'){await shell.openExternal(helpUrl(args?.id));return {ok:true};}
       if(action==='update:open'){
         const url=service.updateInfo?.url || service.store.get('updateCheck',null)?.url || '';
@@ -72,7 +90,7 @@ async function start() {
       }
       if(action==='rules:export'){
         const data=service.store.exportRules();
-        const chosen=await dialog.showSaveDialog(main,{defaultPath:'leise-dns-regeln.json',filters:[{name:'JSON',extensions:['json']}]});
+        const chosen=await dialog.showSaveDialog(main,{defaultPath:text('rulesFile'),filters:[{name:'JSON',extensions:['json']}]});
         if(chosen.canceled || !chosen.filePath)return {ok:true,value:{canceled:true}};
         fs.writeFileSync(chosen.filePath,JSON.stringify(data,null,2));
         return {ok:true,value:{canceled:false,count:data.white.length+data.black.length}};
@@ -96,7 +114,7 @@ async function start() {
         const format=args?.format==='csv'?'csv':'json';
         const rows=service.store.exportQueries({search:args?.search||'',status:args?.status||'all'});
         const body=format==='csv'?queriesToCsv(rows):queriesToJson(rows);
-        const chosen=await dialog.showSaveDialog(main,{defaultPath:format==='csv'?'leise-dns-anfragen.csv':'leise-dns-anfragen.json',filters:[{name:format.toUpperCase(),extensions:[format]}]});
+        const chosen=await dialog.showSaveDialog(main,{defaultPath:`${text('queriesFile')}.${format}`,filters:[{name:format.toUpperCase(),extensions:[format]}]});
         if(chosen.canceled || !chosen.filePath)return {ok:true,value:{canceled:true}};
         fs.writeFileSync(chosen.filePath,body);
         return {ok:true,value:{canceled:false,count:rows.length,format}};
@@ -137,7 +155,7 @@ async function start() {
 app.on('window-all-closed',()=>{});
 app.on('before-quit',event=>{
   if(exitReady || !service)return;event.preventDefault();if(quitting)return;
-  if(service.busy){dialog.showMessageBox(main,{type:'info',message:'Bitte die laufende DNS-Änderung abwarten und danach erneut beenden.'});return;}
+  if(service.busy){dialog.showMessageBox(main,{type:'info',message:text('waitQuit')});return;}
   quitting=true;
-  service.close().then(()=>{exitReady=true;tray?.destroy();app.quit();}).catch(e=>{quitting=false;openDashboard();dialog.showErrorBox('DNS konnte noch nicht zurückgesetzt werden',e.message+'\nDie App bleibt geöffnet, damit dein DNS-Dienst weiterläuft. Bitte erneut versuchen.');});
+  service.close().then(()=>{exitReady=true;tray?.destroy();app.quit();}).catch(e=>{quitting=false;openDashboard();dialog.showErrorBox(text('resetFailed'),e.message+'\n'+text('resetFailedHint'));});
 });

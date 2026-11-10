@@ -19,30 +19,30 @@
     <div class="popup-light" aria-hidden="true"></div>
     <header class="popup-head">
       <span class="popup-brand"><i data-brand="pbm"></i><span>Leise <span>DNS</span></span></span>
-      <span class="popup-local"><i data-icon="computer" class="icon-sm"></i>Nur auf diesem PC</span>
+      <span class="popup-local"><i data-icon="computer" class="icon-sm"></i><span data-i18n="local.title">Nur auf diesem PC</span></span>
     </header>
 
     <section class="popup-status" aria-live="polite">
       <div class="popup-symbol" id="popup-symbol" aria-hidden="true"></div>
       <div class="popup-copy">
-        <h1 id="popup-title">Wird geprüft …</h1>
-        <p id="popup-description">Dein lokaler DNS-Schutz.</p>
+        <h1 id="popup-title" data-i18n="checking">Wird geprüft …</h1>
+        <p id="popup-description" data-i18n="popup.desc">Dein lokaler DNS-Schutz.</p>
       </div>
-      <button class="switch switch-md" id="popup-toggle" role="switch" aria-checked="false" aria-label="Schutz einschalten"><span class="switch-track-fill"></span><span class="switch-knob"><span class="spinner"></span></span></button>
+      <button class="switch switch-md" id="popup-toggle" role="switch" aria-checked="false" aria-label="Schutz einschalten" data-i18n-aria="popup.toggleOn"><span class="switch-track-fill"></span><span class="switch-knob"><span class="spinner"></span></span></button>
     </section>
     <div class="popup-error" id="popup-error" role="alert" hidden><i data-icon="alert" class="icon-sm"></i><span id="popup-error-text"></span></div>
 
-    <p class="popup-label">Schutz pausieren</p>
-    <div class="popup-pause" role="group" aria-label="Schutz pausieren">
-      <button class="btn" data-mode="5"><i data-icon="timer"></i>5 Minuten</button>
-      <button class="btn" data-mode="30"><i data-icon="timer"></i>30 Minuten</button>
-      <button class="btn" data-mode="restart"><i data-icon="restart"></i>Bis Neustart</button>
-      <button class="btn" data-mode="off"><i data-icon="power"></i>Dauerhaft aus</button>
+    <p class="popup-label" data-i18n="pause.title">Schutz pausieren</p>
+    <div class="popup-pause" role="group" aria-label="Schutz pausieren" data-i18n-aria="pause.title">
+      <button class="btn" data-mode="5"><i data-icon="timer"></i><span data-i18n="pause.5">5 Minuten</span></button>
+      <button class="btn" data-mode="30"><i data-icon="timer"></i><span data-i18n="pause.30">30 Minuten</span></button>
+      <button class="btn" data-mode="restart"><i data-icon="restart"></i><span data-i18n="pause.restartShort">Bis Neustart</span></button>
+      <button class="btn" data-mode="off"><i data-icon="power"></i><span data-i18n="pause.off">Dauerhaft aus</span></button>
     </div>
 
     <footer class="popup-actions">
-      <button class="btn btn-accent" id="open"><span>Dashboard öffnen</span><i data-icon="arrow"></i></button>
-      <button class="btn btn-quiet popup-quit" id="quit"><i data-icon="power"></i>Beenden &amp; DNS zurücksetzen</button>
+      <button class="btn btn-accent" id="open"><span data-i18n="popup.open">Dashboard öffnen</span><i data-icon="arrow"></i></button>
+      <button class="btn btn-quiet popup-quit" id="quit"><i data-icon="power"></i><span data-i18n="popup.quit">Beenden &amp; DNS zurücksetzen</span></button>
     </footer>
   </div>
 </body>
