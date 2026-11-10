@@ -112,7 +112,7 @@ body.popup { user-select: none; }
 .tone-success .popup-symbol { --symbol-tone: linear-gradient(160deg, #8cefc4, #2fae82); --symbol-glow: rgba(60, 200, 150, 0.6); color: #06281c; }
 .tone-warning .popup-symbol { --symbol-tone: linear-gradient(160deg, #f7d08d, #cc8a36); --symbol-glow: rgba(220, 150, 60, 0.55); color: #2e1b04; }
 .tone-danger .popup-symbol { --symbol-tone: linear-gradient(160deg, #f4a3a1, #c2505a); --symbol-glow: rgba(210, 90, 95, 0.55); }
-.tone-info .popup-symbol { --symbol-tone: linear-gradient(160deg, #a8c6ff, #3f78e0); --symbol-glow: rgba(80, 140, 240, 0.55); }
+.tone-info .popup-symbol { --symbol-tone: linear-gradient(160deg, #b9c8dc, #5e7594); --symbol-glow: rgba(110, 135, 168, 0.5); }
 
 .popup-copy h1 { font-family: var(--font-display); font-size: 17px; font-weight: 650; letter-spacing: -0.01em; line-height: 1.25; }
 .popup-copy p { margin-top: 2px; font-size: var(--fs-footnote); line-height: 1.4; color: var(--text-2); }

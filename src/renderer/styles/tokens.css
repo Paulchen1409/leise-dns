@@ -25,8 +25,9 @@
   --fs-callout: 15px;
   --fs-section: 17px;
   --fs-status: 27px;
-  --fs-title: 31px;
-  --fs-metric: 38px;
+  --fs-title: 34px;
+  --fs-metric: 40px;
+  --measure: 72ch; /* comfortable line length for running text */
   --fw-regular: 400;
   --fw-medium: 520;
   --fw-semibold: 600;
@@ -53,13 +54,14 @@
   --control-h: 44px;
   --control-h-compact: 34px;
 
-  /* Layer A · backdrop */
-  --bg: #0f141d;
-  --bg-deep: #0a0d13;
-  --field-blue: rgba(78, 116, 190, 0.46);
-  --field-petrol: rgba(32, 122, 132, 0.40);
-  --field-violet: rgba(112, 88, 180, 0.27);
-  --field-mint: rgba(86, 204, 162, 0.13);
+  /* Layer A · backdrop: cool graphite, one petrol field, a trace of the accent.
+     No blue/violet wash, so the single accent (mint) carries the colour. */
+  --bg: #0f1318;
+  --bg-deep: #0a0d11;
+  --field-slate: rgba(74, 92, 118, 0.34);
+  --field-petrol: rgba(34, 108, 112, 0.30);
+  --field-graphite: rgba(58, 68, 80, 0.26);
+  --field-mint: rgba(86, 204, 162, 0.10);
 
   /* Text */
   --text-1: #f2f5f9;
@@ -77,9 +79,14 @@
   --red: #f0918f;
   --red-deep: #cf5f63;
   --red-soft: rgba(240, 145, 143, 0.14);
-  --blue: #93b9ff;
-  --blue-deep: #4f8cf0;
-  --blue-soft: rgba(147, 185, 255, 0.15);
+  /* Info stays a muted slate blue (below 50 % saturation); it never acts as an accent. */
+  --blue: #a9bcd6;
+  --blue-deep: #6f87a8;
+  --blue-soft: rgba(169, 188, 214, 0.14);
+  /* The one accent: mint. Primary actions, focus, selection, current page. */
+  --accent: var(--mint);
+  --accent-deep: var(--mint-deep);
+  --accent-soft: var(--mint-soft);
   --neutral: #aab6c6;
   --neutral-soft: rgba(170, 182, 198, 0.13);
 
@@ -118,10 +125,10 @@
   --glass-specular: radial-gradient(120% 80% at 0% 0%, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0) 46%),
                     radial-gradient(90% 60% at 100% 100%, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0) 55%);
 
-  /* Depth */
-  --shadow-contact: 0 0 0 0.5px rgba(0, 0, 0, 0.5), 0 1px 1.5px rgba(0, 0, 0, 0.3);
-  --shadow-float: var(--shadow-contact), 0 8px 20px -10px rgba(0, 0, 0, 0.5), 0 24px 56px -26px rgba(0, 0, 0, 0.6);
-  --shadow-float-lg: var(--shadow-contact), 0 14px 32px -12px rgba(0, 0, 0, 0.55), 0 42px 90px -34px rgba(0, 0, 0, 0.7);
+  /* Depth: shadows carry the backdrop's blue-graphite hue instead of pure black. */
+  --shadow-contact: 0 0 0 0.5px rgba(3, 6, 10, 0.55), 0 1px 1.5px rgba(3, 6, 10, 0.32);
+  --shadow-float: var(--shadow-contact), 0 8px 20px -10px rgba(4, 9, 16, 0.55), 0 24px 56px -26px rgba(4, 9, 16, 0.66);
+  --shadow-float-lg: var(--shadow-contact), 0 14px 32px -12px rgba(4, 9, 16, 0.6), 0 42px 90px -34px rgba(4, 9, 16, 0.75);
 
   /* Fills for controls placed on glass or content (never glass on glass) */
   --fill-1: rgba(255, 255, 255, 0.055);
@@ -132,7 +139,7 @@
   --control-edge: inset 0 1px 0 rgba(255, 255, 255, 0.075), inset 0 0 0 0.5px rgba(255, 255, 255, 0.075);
 
   /* Focus */
-  --focus-ring: var(--blue);
+  --focus-ring: var(--accent);
 
   /* Motion */
   --dur-1: 140ms;
@@ -160,10 +167,10 @@
   --glass-filter-thin: none;
   --content-fill: rgba(22, 27, 36, 0.985);
   --glass-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0) 50%);
-  --field-blue: rgba(74, 110, 180, 0.2);
-  --field-petrol: rgba(30, 116, 126, 0.16);
-  --field-violet: rgba(108, 86, 172, 0.1);
-  --field-mint: rgba(86, 204, 162, 0.05);
+  --field-slate: rgba(72, 90, 116, 0.16);
+  --field-petrol: rgba(32, 104, 110, 0.13);
+  --field-graphite: rgba(58, 68, 80, 0.12);
+  --field-mint: rgba(86, 204, 162, 0.04);
 }
 
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {

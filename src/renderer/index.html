@@ -16,7 +16,7 @@
   <script defer src="../../node_modules/chart.js/dist/chart.umd.js"></script>
   <script defer src="app.js"></script>
 </head>
-<body>
+<body class="is-loading">
   <div class="backdrop" aria-hidden="true"></div>
   <a class="skip-link" href="#main" data-i18n="a11y.skip">Zum Inhalt springen</a>
 
@@ -39,7 +39,7 @@
         <div class="local-title"><i data-icon="computer"></i><span data-i18n="local.title">Nur auf diesem PC</span></div>
         <p data-i18n="local.text">Router und Heimnetz bleiben unverändert. Regeln und Statistiken bleiben auf diesem Gerät.</p>
       </div>
-      <p class="version" id="app-version">Leise DNS · Version 0.7.1</p>
+      <p class="version" id="app-version">Leise DNS · Version 0.7.2</p>
     </div>
   </aside>
 
@@ -93,6 +93,8 @@
         <div>
           <span class="callout-title" id="bypass-title" data-i18n="bypass.title">Einige Apps können den Schutz umgehen</span>
           <p data-i18n="bypass.text">Chrome, Edge, Firefox, Brave und manche Apps fragen über eigenes verschlüsseltes DNS (DNS-over-HTTPS oder DNS-over-TLS) und sehen den Windows-DNS-Dienst nicht. Leise DNS kann diese Anfragen weder sperren noch zählen. Schalte „Sicheres DNS“ bzw. „DNS über HTTPS“ dort aus, oder stelle es auf den System-DNS-Dienst.</p>
+          <details class="disclosure">
+          <summary><i data-icon="chevron"></i><span data-i18n="bypass.how">So schaltest du es aus</span></summary>
           <ul class="help-list">
             <li data-i18n-html="bypass.chrome"><b>Chrome und Brave:</b> Einstellungen → Datenschutz und Sicherheit → Sicherheit → „Sicheres DNS verwenden“ aus. Bei Brave heißt die Seite <b>brave://settings/security</b>.</li>
             <li data-i18n-html="bypass.edge"><b>Edge:</b> Einstellungen → Datenschutz, Suche und Dienste → Sicherheit → „Sicheres DNS verwenden“ aus.</li>
@@ -105,6 +107,7 @@
             <button type="button" class="btn btn-sm" data-help="firefox" data-i18n="bypass.guideFirefox">Anleitung Firefox</button>
             <button type="button" class="btn btn-sm" data-help="windows" data-i18n="bypass.guideWindows">Anleitung Windows</button>
           </div>
+          </details>
         </div>
         <button type="button" id="bypass-close" class="btn btn-sm btn-quiet btn-icon-sm callout-close" aria-label="Hinweis schließen" title="Hinweis schließen" data-i18n-aria="bypass.close" data-i18n-title="bypass.close"><i data-icon="close"></i></button>
       </aside>

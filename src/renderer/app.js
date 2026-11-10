@@ -445,7 +445,7 @@ function queryRow(r, full) {
   const act = r.status === 'blocked'
     ? `<button class="btn btn-sm row-action" data-rule-domain="${esc(r.domain)}" data-rule-kind="white"${threat ? ` data-threat="${threat}"` : ''} aria-label="${esc(t('query.allowAria', { domain: r.domain }))}">${icon('allow')}${t('query.allow')}</button>`
     : `<button class="btn btn-sm row-action" data-rule-domain="${esc(r.domain)}" data-rule-kind="black" aria-label="${esc(t('query.blockAria', { domain: r.domain }))}">${icon('block')}${t('query.block')}</button>`;
-  return `<tr data-id="${r.id}"><td class="cell-time" title="${esc(date(r.time))}">${time(r.time)}${full ? `<small>${day(r.time)}</small>` : ''}</td>`
+  return `<tr data-id="${r.id}"><td class="cell-time" title="${esc(date(r.time))}">${time(r.time)}${full && new Date(r.time).toDateString() !== new Date().toDateString() ? `<small>${day(r.time)}</small>` : ''}</td>`
     + `<td class="cell-domain" title="${esc(detail)}">${esc(r.domain)}${full && r.type ? `<span class="domain-type">${esc(r.type)}</span>` : ''}</td>`
     + `<td><span class="status-text ${cls}" title="${esc(reason || label)}">${icon(symbol, 'icon-sm')}${label}</span></td>`
     + `${full ? `<td class="cell-action">${act}</td>` : ''}</tr>`;
@@ -509,7 +509,7 @@ function filterCard(l) {
     + (coverage ? `<p class="skipped-note">${coverage}</p>` : '');
   return `<article class="filter-card${l.enabled ? '' : ' is-off'}" aria-label="${esc(l.name)}">
     <div class="filter-icon">${icon('layers')}</div>
-    <div class="filter-main"><div class="filter-title"><h3 title="${esc(l.name)}">${esc(l.name)}</h3></div><div class="filter-sub">${l.preset ? `<span class="tag${l.category === 'ads' ? '' : ' tag-danger'}">${esc(t({ malware: 'list.cat.malware', phishing: 'list.cat.phishing' }[l.category] || 'list.cat.ads'))}</span>` : `<span class="tag">${t('list.own')}</span>`}<span class="filter-url" title="${esc(l.url)}">${esc(l.url)}</span></div></div>
+    <div class="filter-main"><div class="filter-title"><h3 title="${esc(l.name)}">${esc(l.name)}</h3></div><div class="filter-sub">${l.preset ? `<span class="tag${l.category === 'ads' ? '' : ' tag-danger'}">${esc(t({ malware: 'list.cat.malware', phishing: 'list.cat.phishing' }[l.category] || 'list.cat.ads'))}</span>` : `<span class="tag">${t('list.own')}</span>`}<span class="filter-url" title="${esc(l.url)}">${esc(l.url.replace(/^https:\/\//, ''))}</span></div></div>
     <div class="filter-count"><strong>${number(l.count)}</strong><span>${t('list.domains')}</span></div>
     <div class="filter-state">${state}<span class="sub">${l.updated ? t('list.updated', { date: date(l.updated) }) : t('list.notLoaded')}</span></div>
     <div class="filter-actions">
@@ -620,6 +620,8 @@ async function refresh() {
     const recent = (await api.call('queries')).slice(0, 5);
     if (changed('recent', recent.map(r => r.id))) $('#recent-queries').innerHTML = table(recent);
   } finally {
+    // Also after an error: the toast explains it, the skeletons must not shimmer forever.
+    document.body.classList.remove('is-loading');
     refreshing = false;
     if (refreshAgain) { refreshAgain = false; scheduleRefresh(120); }
   }

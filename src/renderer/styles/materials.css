@@ -14,11 +14,11 @@
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(70vw 62vh at 8% -8%, var(--field-blue), transparent 68%),
+    radial-gradient(70vw 62vh at 8% -8%, var(--field-slate), transparent 68%),
     radial-gradient(58vw 70vh at 104% 16%, var(--field-petrol), transparent 66%),
-    radial-gradient(42vw 46vh at 26% 108%, var(--field-violet), transparent 70%),
+    radial-gradient(42vw 46vh at 26% 108%, var(--field-graphite), transparent 70%),
     radial-gradient(46vw 40vh at 62% 44%, var(--field-mint), transparent 72%),
-    linear-gradient(162deg, #111722 0%, var(--bg) 46%, var(--bg-deep) 100%);
+    linear-gradient(162deg, #12171d 0%, var(--bg) 46%, var(--bg-deep) 100%);
 }
 
 /* Fine grain keeps the large gradients free of banding. */

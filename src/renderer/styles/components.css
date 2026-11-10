@@ -18,6 +18,9 @@ body {
 }
 
 h1, h2, h3, p { margin: 0; }
+/* No orphaned words: headings balance their lines, running text avoids a lone last word. */
+h1, h2, h3, .callout-title { text-wrap: balance; }
+p, li, small { text-wrap: pretty; }
 button, input, select { font: inherit; color: inherit; }
 a { color: inherit; text-decoration: none; }
 button { cursor: pointer; }
@@ -27,7 +30,7 @@ button { cursor: pointer; }
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
 
-::selection { background: rgba(147, 185, 255, 0.35); }
+::selection { background: rgba(130, 228, 186, 0.28); }
 
 :focus { outline: none; }
 :focus-visible {
@@ -102,7 +105,8 @@ button { cursor: pointer; }
     0 0 0 0.5px rgba(0, 0, 0, 0.35),
     0 6px 18px -8px var(--btn-glow);
 }
-.btn-accent { --btn-tone: var(--blue-deep); --btn-glow: rgba(79, 140, 240, 0.8); }
+/* Primary actions share the single accent; protection actions use the same tone. */
+.btn-accent { --btn-tone: var(--accent-deep); --btn-glow: rgba(63, 191, 140, 0.7); color: var(--text-on-light); }
 .btn-protect { --btn-tone: var(--mint-deep); --btn-glow: rgba(63, 191, 140, 0.75); color: var(--text-on-light); }
 .btn-accent:hover, .btn-protect:hover { filter: brightness(1.08); background-color: transparent; }
 .btn-accent:active:not(:disabled), .btn-protect:active:not(:disabled) {
@@ -207,7 +211,7 @@ button { cursor: pointer; }
   border-radius: var(--r-pill);
   display: grid;
   place-items: center;
-  color: var(--blue-deep);
+  color: var(--accent-deep);
   background: linear-gradient(180deg, #ffffff 0%, #eef2f6 55%, #e1e7ee 100%);
   box-shadow:
     0 0 0 0.5px rgba(0, 0, 0, 0.14),
@@ -326,7 +330,7 @@ button { cursor: pointer; }
 .field:hover { background: rgba(0, 0, 0, 0.3); }
 .field:focus-within {
   color: var(--text-2);
-  box-shadow: inset 0 0 0 1px rgba(147, 185, 255, 0.85), 0 0 0 4px rgba(147, 185, 255, 0.2);
+  box-shadow: inset 0 0 0 1px rgba(130, 228, 186, 0.8), 0 0 0 4px rgba(130, 228, 186, 0.16);
 }
 .field input, .field select {
   flex: 1;
@@ -459,6 +463,32 @@ button { cursor: pointer; }
 .callout-close { flex: none; margin: -6px -8px 0 auto; color: var(--text-2); }
 .callout-close:hover { color: var(--text-1); }
 #bypass-show { margin-left: 6px; vertical-align: baseline; }
+.bypass-hint p { max-width: var(--measure); }
+
+/* Progressive disclosure: details stay one click away instead of filling the page. */
+.disclosure { margin-top: var(--s2); }
+.disclosure > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  margin-left: -8px;
+  padding: 0 10px 0 6px;
+  border-radius: var(--r-pill);
+  list-style: none;
+  cursor: pointer;
+  font-size: var(--fs-footnote);
+  font-weight: var(--fw-semibold);
+  color: var(--text-1);
+  transition: background-color var(--dur-1) var(--ease);
+  -webkit-app-region: no-drag;
+}
+.disclosure > summary::-webkit-details-marker { display: none; }
+.disclosure > summary:hover { background: rgba(255, 255, 255, 0.06); }
+.disclosure > summary:active { background: rgba(255, 255, 255, 0.03); }
+.disclosure > summary .icon { width: 15px; height: 15px; transition: transform var(--dur-2) var(--ease-out); }
+.disclosure[open] > summary .icon { transform: rotate(90deg); }
+.disclosure[open] > :not(summary) { animation: rise-in var(--dur-3) var(--ease-out); }
 .help-list li { margin: 4px 0; }
 .help-list b { color: var(--text-1); }
 
@@ -541,6 +571,35 @@ dialog p { margin-top: var(--s2); color: var(--text-2); line-height: 1.55; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: var(--s2); margin-top: var(--s6); }
 
 /* ---------- Motion ---------- */
+/* ---------- Skeletons: placeholders in the shape of the real content until the first data ---------- */
+.is-loading .metric-value,
+.is-loading .metric-note,
+.is-loading .legend-item b {
+  color: transparent;
+  border-radius: var(--r-xs);
+  background: linear-gradient(90deg, var(--fill-1) 0%, var(--fill-2) 40%, var(--fill-1) 80%) 0 0 / 300% 100%;
+  animation: shimmer 1.6s var(--ease) infinite;
+}
+.is-loading .metric-value { width: 62%; }
+.is-loading .metric-value .unit { color: transparent; }
+.is-loading .metric-note { width: 80%; }
+.is-loading .chart-empty, .is-loading #top-domains .empty, .is-loading #recent-queries .empty { visibility: hidden; }
+.is-loading #top-domains,
+.is-loading #recent-queries {
+  min-height: 180px;
+  margin: var(--s4) var(--s6) var(--s6);
+  border-radius: var(--r-md);
+  background:
+    repeating-linear-gradient(180deg, transparent 0 14px, var(--fill-1) 14px 28px, transparent 28px 44px) 0 0 / 100% 100%,
+    transparent;
+  -webkit-mask: linear-gradient(90deg, #000 0%, rgba(0, 0, 0, 0.35) 100%);
+  mask: linear-gradient(90deg, #000 0%, rgba(0, 0, 0, 0.35) 100%);
+  animation: pulse 1.6s var(--ease) infinite;
+}
+:root[data-motion="reduce"] .is-loading * { animation: none !important; }
+@keyframes shimmer { to { background-position: -300% 0; } }
+@keyframes pulse { 50% { opacity: 0.55; } }
+
 @keyframes rise-in { from { opacity: 0; transform: translateY(6px); } }
 @keyframes fade-in { from { opacity: 0; } }
 @keyframes highlight {
